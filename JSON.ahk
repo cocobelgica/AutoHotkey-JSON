@@ -77,51 +77,46 @@ class JSON
 		}
 		
 		string() {
-			esc_char := [["\""", """"]
-			           , ["\b", Chr(08)]
-			           , ["\t", "`t"]
-			           , ["\n", "`n"]
-			           , ["\f", Chr(12)]
-			           , ["\r", "`r"]
-			           , ["\/", "/"]]
+			static esc_char
+
+			if !esc_char ; Not #Warn friendly
+				esc_char := {"""": """"   ; double quote
+				           , "/": "/"     ; forward slash
+				           , "b": Chr(08) ; backspace
+				           , "f": Chr(12) ; form feed
+				           , "n": "`n"    ; newline
+				           , "r": "`r"    ; carriage return
+				           , "t": "`t"}   ; horiontal tab
 			
 			if (this.ch != """")
 				throw Exception("Bad string")
-			src := SubStr(this.src, this.pos)
-			i := 1, j := InStr(src, """", i+1)
-			; Make this better
-			while true {
-				str := SubStr(src, i, j-i)
+			src := SubStr(this.src, this.pos-1)
+			
+			j := i := InStr(src, """")
+			while (j:=InStr(src, """",, j+1)) {
+				str := SubStr(src, i+1, j-i-1)
 				StringReplace, str, str, \\, \u005C, A
 				if (SubStr(str, 0) != "\")
 					break
-				j := InStr(src, """",, j+1)
 			}
-
-			for a, b in esc_char
-				StringReplace, str, str, % b[1], % b[2], A
 			
 			z := 0
-			while (z:=InStr(str, "\u",, z+1)) {
-				hex := "0x" . SubStr(str, z+2, 4)
-				if !(A_IsUnicode || (Abs(hex) < 0x100))
-					continue
-				str := (z == 1 ? "" : SubStr(str, 1, z-1))
-				     . Chr(hex) . SubStr(str, z+6)
+			while (z:=InStr(str, "\",, z+1)) {
+				ch := SubStr(str, z+1, 1)
+				if InStr("""btnfr/", ch) ; esc_char.HasKey(ch)
+					str := SubStr(str, 1, z-1) . esc_char[ch] . SubStr(str, z+2)
+				
+				else if (ch = "u") {
+					hex := "0x" . SubStr(str, z+2, 4)
+					if !(A_IsUnicode || (Abs(hex) < 0x100))
+						continue
+					str := SubStr(str, 1, z-1) . Chr(hex) . SubStr(str, z+6)
+				
+				} else throw Exception("Bad string")
 			}
 			
-			this.pos += j, this.next()
-			return str ; SubStr(src, i, j-i)
-			/*
-			Optimize this...?
-			while this.next() {
-				if (this.ch == """") {
-					this.next()
-					return str
-				}
-				str .= this.ch
-			}
-			*/
+			this.pos += j-1, this.next()
+			return str
 		}
 
 		number() {
@@ -193,20 +188,5 @@ class JSON
 			while (this.ch != "" && this.ch == " ") ; Handle 'tabs' as well?
 				this.next()
 		}
-	}
-
-	__parse(src) {
-		q := """"
-		str := [], i := 1
-		while (i:=InStr(src, q,, i)) {
-			j := InStr(src, q,, i+1)
-			while (SubStr(src, j-1, 1) == "\")
-				j := InStr(src, q,, j+1)
-			t := SubStr(src, i+1, j-(i+1))
-			str.Insert(t)
-			StringReplace, src, src, % q . t . q, % q
-			i += 1
-		}
-		return str
 	}
 }
