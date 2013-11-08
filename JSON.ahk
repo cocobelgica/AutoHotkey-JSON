@@ -34,7 +34,7 @@ class JSON
 		}
 
 		object() {
-			obj := {}
+			obj := new JSON.object() ; {} wrapper
 			if (this.ch != "{")
 				throw Exception("Bad object")
 			this.next("{"), this.skip_ws()
@@ -187,6 +187,62 @@ class JSON
 		skip_ws() {
 			while (this.ch != "" && this.ch == " ") ; Handle 'tabs' as well?
 				this.next()
+		}
+	}
+
+	class object
+	{
+
+		__New(p*) {
+			ObjInsert(this, "_", [])
+			if Mod(p.MaxIndex(), 2)
+				p.Insert("")
+			for k, v in p {
+				if !Mod(A_Index, 2)
+					this[key] := v
+				else key := v
+			}
+		}
+
+		__Set(k, v, p*) {
+			this._.Insert(k)
+		}
+
+		_NewEnum() {
+			return new JSON.object.Enum(this)
+		}
+
+		Insert(k, v) {
+			return this[k] := v
+		}
+
+		Remove(k) {
+			if !ObjHasKey(this, k)
+				return
+			for i, v in this._
+				continue
+			until (v = k)
+			this._.Remove(i)
+			return ObjRemove(this, k)
+		}
+
+		len() {
+			return this._.MaxIndex()
+		}
+
+		class Enum
+		{
+
+			__New(obj) {
+				this.obj := obj
+				this.enum := obj._._NewEnum()
+			}
+
+			Next(ByRef k, ByRef v:="") {
+				if (r:=this.enum.Next(i, k))
+					v := this.obj[k]
+				return r
+			}
 		}
 	}
 }
