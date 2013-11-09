@@ -1,4 +1,8 @@
-; JSON Lib
+/*
+JSON module for AutoHotkey
+Parser is based on Douglas Crockford's(JSON.org) json_parse.js
+More comments to come!
+*/
 class JSON
 {
 	
@@ -7,8 +11,74 @@ class JSON
 		return res.out
 	}
 
-	stringify(obj) {
+	stringify(obj:="", i:="", lvl:=1) {
+		if IsObject(obj) {
+			for k in obj
+				arr := (k == A_Index)
+			until !arr
 
+			n := i ? "`n" : (i:="", t:="")
+			Loop, % i ? lvl : 0
+				t .= i
+
+			lvl += 1
+			for k, v in obj {
+				if !arr
+					key := InStr(r:=JSON.stringify(k, i, lvl), """") == 1
+					       ? r : """" . r . """"
+				val := JSON.stringify(v, i, lvl)
+				s := "," . (n ? n : " ") . t
+				str .= arr ? (val . s)
+				           : key . ":" . ((IsObject(v) && InStr(val, "{") == 1) ? n . t : " ") . val . s
+			}
+			str := n . t . Trim(str, ",`n`t ") . n . SubStr(t, StrLen(i)+1)
+			return arr ? "[" str "]" : "{" str "}"
+		}
+
+		else if InStr(01, obj) || (obj == "")
+			return {"": "null", 0:"false", 1:"true"}[obj]
+
+		else if obj is number
+		{
+			; Fix this
+			if (SubStr(obj, 1, 2) == "0x") || (obj ~= "i)[a-f]+")
+			{
+				afi := A_FormatInteger
+				SetFormat, Integer, h
+				obj += 0
+				SetFormat, Integer, % afi
+				return """" . obj . """"
+			}
+			
+			return obj
+		}
+
+		else {
+			esc_char := {"""":"\"""
+			           , "/":"\/"
+			           , Chr(08):"\b"
+			           , Chr(12):"\f"
+			           , "`n":"\n"
+			           , "`r":"\r"
+			           , "`t":"\t"}
+			
+			StringReplace, obj, obj, \, \\, A
+			for k, v in esc_char
+				StringReplace, obj, obj, % k, % v, A
+
+			while RegExMatch(obj, "[^\x20-\x7e]", ch) {
+				ustr := Asc(ch), esc_ch := "\u", n := 12
+				while (n >= 0)
+					esc_ch .= Chr((x:=(ustr>>n) & 15) + (x<10 ? 48 : 55))
+					, n -= 4
+				StringReplace, obj, obj, % ch, % esc_ch, A
+			}
+			return """" . obj . """"
+		}
+	}
+
+	object(p*) {
+		return new JSON.__object__(p*)
 	}
 
 	class deserializer
@@ -34,7 +104,7 @@ class JSON
 		}
 
 		object() {
-			obj := new JSON.object() ; {} wrapper
+			obj := JSON.object() ; {} wrapper
 			if (this.ch != "{")
 				throw Exception("Bad object")
 			this.next("{"), this.skip_ws()
@@ -86,7 +156,7 @@ class JSON
 				           , "f": Chr(12) ; form feed
 				           , "n": "`n"    ; newline
 				           , "r": "`r"    ; carriage return
-				           , "t": "`t"}   ; horiontal tab
+				           , "t": "`t"}   ; horizontal tab
 			
 			if (this.ch != """")
 				throw Exception("Bad string")
@@ -185,12 +255,19 @@ class JSON
 		Skip whitespace
 		*/
 		skip_ws() {
-			while (this.ch != "" && this.ch == " ") ; Handle 'tabs' as well?
+			if (this.ch != "" && InStr(" `t`r`n", this.ch)) {
+				src := SubStr(this.src, this.pos)
+				pos := RegExMatch(src, "\S")
+				this.pos += pos-1, this.next()
+			}
+			/*
+			while (this.ch != "" && InStr(" `t`r`n", this.ch))
 				this.next()
+			*/
 		}
 	}
 
-	class object
+	class __object__
 	{
 
 		__New(p*) {
@@ -209,7 +286,7 @@ class JSON
 		}
 
 		_NewEnum() {
-			return new JSON.object.Enum(this)
+			return new JSON.__object__.Enum(this)
 		}
 
 		Insert(k, v) {
