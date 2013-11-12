@@ -1,14 +1,126 @@
 /*
 JSON module for AutoHotkey
-Parser is based on Douglas Crockford's(JSON.org) json_parse.js
 More comments to come!
 */
 class JSON
 {
 	
 	parse(src) {
-		res := new JSON.deserializer(src)
-		return res.out
+		static object := {__type__:"object"} ; Fix this, create class
+		static array := {__type__:"array"} ; Fix this, create class
+		esc_char := {"""":"""", "/":"/", "b":Chr(08), "f":Chr(12), "n":"`n", "r":"`r", "t":"`t"}
+		null := "" ; needed??
+
+		i := 0, strings := []
+		while (i:=InStr(src, """",, i+1)) {
+			j := i
+			while (j:=InStr(src, """",, j+1)) {
+				str := SubStr(src, i+1, j-i-1)
+				StringReplace, str, str, \\, \u005C, A
+				if (SubStr(str, 0) != "\")
+					break
+			}
+
+			src := SubStr(src, 1, i-1) . SubStr(src, j)
+
+			z := 0
+			while (z:=InStr(str, "\",, z+1)) {
+				ch := SubStr(str, z+1, 1)
+				if InStr("""btnfr/", ch) ; esc_char.HasKey(ch)
+					str := SubStr(str, 1, z-1) . esc_char[ch] . SubStr(str, z+2)
+				
+				else if (ch = "u") {
+					hex := "0x" . SubStr(str, z+2, 4)
+					if !(A_IsUnicode || (Abs(hex) < 0x100))
+						continue
+					str := SubStr(str, 1, z-1) . Chr(hex) . SubStr(str, z+6)
+				
+				} else throw Exception("Bad string")
+			}
+			strings.Insert(str)
+		}
+		
+		pos := 1, ch := " "
+		key := dummy := []
+		stack := [result:=new array], assert := "{[""tfn0123456789-"
+		while (ch != "", ch:=SubStr(src, pos, 1), pos+=1) {
+			
+			while (ch != "" && InStr(" `t`r`n", ch)) ; skip whitespace
+				ch := SubStr(src, pos, 1), pos += 1
+				;pos := RegExMatch(src, "\S", ch, pos)+1
+			/*
+			Check if the current character is expected or not
+			Speed is somehow sacrificed..
+			*/
+			if (assert != "") {
+				if !InStr(assert, ch)
+					throw Exception("Unexpected '" . ch . "'", -1)
+				assert := ""
+			}
+			
+			if InStr(":,", ch) {
+				assert := "{[""tfn0123456789-"
+				continue
+			}
+
+			if InStr("{[", ch) {
+				cont := stack[1], __base__ := (ch == "{" ? "object" : "array")
+				len := (i:=cont.MaxIndex()) ? i : 0
+				stack.Insert(1, cont[key == dummy ? len+1 : key] := new %__base__%)
+				key := dummy
+				assert := (ch == "{" ? """}" : "]{[""tfn0123456789-")
+				continue
+			
+			} else if InStr("}]", ch) {
+				stack.Remove(1), assert := "]},"
+				continue
+			
+			} else if (ch == """") {
+				str := strings.Remove(1), cont := stack[1]
+				if (key == dummy) {
+					if (cont.__type__ == "array") {
+						key := ((i:=cont.MaxIndex()) ? i : 0)+1
+					} else {
+						key := str, assert := ":"
+						continue
+					}
+				}
+				cont[key] := str, key := dummy
+				assert := "," . {"object":"}", "array":"]"}[cont.__type__]
+				continue
+			
+			} else if (ch >= 0 && ch <= 9) || (ch == "-") { ; number
+				if !RegExMatch(src, "-?\d+(\.\d+)?((?i)E[-+]?\d+)?", num, pos-1)
+					throw Exception("Bad number", -1)
+				pos += StrLen(num)-1
+				cont := stack[1], len := (i:=cont.MaxIndex()) ? i : 0
+				cont[key == dummy ? len+1 : key] := num
+				key := dummy
+				assert := "," . {"object":"}", "array":"]"}[cont.__type__]
+				continue
+			
+			} else if InStr("tfn", ch, true) { ; true|false|null
+				val := {t:"true", f:"false", n:"null"}[ch]
+				; advance to next char, first char has already been validated
+				while (c:=SubStr(val, A_Index+1, 1)) {
+					ch := SubStr(src, pos, 1), pos += 1
+					if !(ch == c) ; case-sensitive comparison
+						throw Exception("Expected '" c "' instead of " ch)
+				}
+
+				cont := stack[1], len := (i:=cont.MaxIndex()) ? i : 0
+				cont[key == dummy ? len+1 : key] := %val%
+			    key := dummy
+			    assert := "," . {"object":"}", "array":"]"}[cont.__type__]
+			    continue
+			
+			} else {
+				if (ch != "")
+					throw Exception("Unexpected '" . ch . "'", -1)
+				else break
+			}
+		}
+		return result[1]
 	}
 
 	stringify(obj:="", i:="", lvl:=1) {
@@ -74,196 +186,6 @@ class JSON
 				StringReplace, obj, obj, % ch, % esc_ch, A
 			}
 			return """" . obj . """"
-		}
-	}
-
-	object(p*) {
-		return new JSON.__object__(p*)
-	}
-
-	class deserializer
-	{
-
-		__New(src) {
-			this.src := src
-			this.pos := 1
-			this.ch := " "
-			this.out := this.value()
-		}
-
-		char_at(pos) {
-			return SubStr(this.src, pos, 1)
-		}
-
-		next(c:="") {
-			if (c != "" && c != this.ch)
-				throw Exception("Expected '" . c . "' instead of '" . this.ch . "'")
-			this.ch := SubStr(this.src, this.pos, 1) ; char at pos
-			this.pos += 1
-			return this.ch
-		}
-
-		object() {
-			obj := JSON.object() ; {} wrapper
-			if (this.ch != "{")
-				throw Exception("Bad object")
-			this.next("{"), this.skip_ws()
-			if (this.ch == "}") {
-				this.next("}")
-				return obj
-			}
-			
-			while this.ch {
-				key := this.string()
-				this.skip_ws(), this.next(":")
-				obj[key] := this.value()
-				this.skip_ws()
-				if (this.ch == "}") {
-					this.next("}")
-					return obj
-				}
-				this.next(","), this.skip_ws()
-			}
-		}
-
-		array() {
-			arr := []
-			if (this.ch != "[")
-				throw Exception("Bad array")
-			this.next("["), this.skip_ws()
-			if (this.ch == "]") {
-				this.next("]")
-				return arr
-			}
-			while this.ch {
-				arr.Insert(this.value())
-				this.skip_ws()
-				if (this.ch == "]") {
-					this.next("]")
-					return arr
-				}
-				this.next(","), this.skip_ws()
-			}
-		}
-		
-		string() {
-			static esc_char
-
-			if !esc_char ; Not #Warn friendly
-				esc_char := {"""": """"   ; double quote
-				           , "/": "/"     ; forward slash
-				           , "b": Chr(08) ; backspace
-				           , "f": Chr(12) ; form feed
-				           , "n": "`n"    ; newline
-				           , "r": "`r"    ; carriage return
-				           , "t": "`t"}   ; horizontal tab
-			
-			if (this.ch != """")
-				throw Exception("Bad string")
-			src := SubStr(this.src, this.pos-1)
-			
-			j := i := InStr(src, """")
-			while (j:=InStr(src, """",, j+1)) {
-				str := SubStr(src, i+1, j-i-1)
-				StringReplace, str, str, \\, \u005C, A
-				if (SubStr(str, 0) != "\")
-					break
-			}
-			
-			z := 0
-			while (z:=InStr(str, "\",, z+1)) {
-				ch := SubStr(str, z+1, 1)
-				if InStr("""btnfr/", ch) ; esc_char.HasKey(ch)
-					str := SubStr(str, 1, z-1) . esc_char[ch] . SubStr(str, z+2)
-				
-				else if (ch = "u") {
-					hex := "0x" . SubStr(str, z+2, 4)
-					if !(A_IsUnicode || (Abs(hex) < 0x100))
-						continue
-					str := SubStr(str, 1, z-1) . Chr(hex) . SubStr(str, z+6)
-				
-				} else throw Exception("Bad string")
-			}
-			
-			this.pos += j-1, this.next()
-			return str
-		}
-
-		number() {
-			src := SubStr(this.src, this.pos-1)
-			xpr := "^[-+]?\d+(\.\d+)?((?i)E[-+]?\d+)?"
-			if !RegExMatch(src, xpr, num)
-				throw Exception("Bad number")
-			this.pos += StrLen(num)-1, this.next()
-			return num
-			/*
-			; json_parse.js implementation
-			if (this.ch == "-")
-				num := "-", this.next("-")
-			while (this.ch >= 0 && this.ch <= 9)
-				num .= this.ch, this.next()
-			if (this.ch == ".") {
-				num .= "."
-				while (this.next() && this.ch >= 0 && this.ch <= 9)
-					num .= this.ch
-			}
-			if (this.ch = "e") {
-				num .= this.ch, this.next()
-				if InStr("-+", this.ch)
-					num .= this.ch, this.next()
-				while (this.ch >= 0 && this.ch <= 9)
-					num .= this.ch, this.next()
-			}
-			return num
-			*/
-		}
-		/*
-		true, false or null
-		*/
-		const() {
-			ch := this.ch
-			c := {t:{str:"true", val:true}
-			    , f:{str:"false", val:false}
-			    , n:{str:"null", val:""}}
-			if !c.HasKey(ch)
-				throw Exception("Unexpected '" . ch . "'")
-			str := c[ch].str
-			Loop, Parse, str
-				try this.next(A_LoopField)
-				catch e
-					throw e
-			return c[ch].val
-		}
-		/*
-		Parse a JSON value [array, object, string, number, word(true, false, null)]
-		*/
-		value() {
-			this.skip_ws()
-			if ((ch:=this.ch) == "{")
-				return this.object()
-			else if (ch == "[")
-				return this.array()
-			else if (ch == """")
-				return this.string()
-			else if (ch == "-")
-				return this.number()
-			else return (ch >= 0 && ch <= 9)
-			            ? this.number()
-			            : this.const()
-		}
-		/*
-		Skip whitespace
-		*/
-		skip_ws() {
-			if (this.ch != "" && InStr(" `t`r`n", this.ch)) {
-				src := SubStr(this.src, this.pos)
-				pos := RegExMatch(src, "\S")
-				this.pos += pos-1, this.next()
-			}
-			/*
-			while (this.ch != "" && InStr(" `t`r`n", this.ch))
-				this.next()
-			*/
 		}
 	}
 
