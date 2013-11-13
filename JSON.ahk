@@ -1,16 +1,36 @@
 /*
-JSON module for AutoHotkey
-More comments to come!
+JSON module for AutoHotkey [requires v.1.1+, tested on v.1.1.13.01]
+
+The parser is inspired by Douglas Crockford's(json.org) json_parse.js and
+and Mike Samuel's json_sans_eval.js (https://code.google.com/p/json-sans-eval/).
+I've combined the two implementation to create a fast(somehow:P) and validating
+JSON parser. Some section(s) are based on VxE's JSON function(s) - 
+[http://www.ahkscript.org/boards/viewtopic.php?f=6&t=30] - Thank you VxE
 */
 class JSON
 {
-	
+	/*
+	Parses a string containing JSON string and returns it as an AHK object.
+	Objects {} and arrays [] are wrapped as JSON.object and JSON.array instances.
+	Objects {} key-value pairs are enumerated in the order they are created
+	instead of the default behavior -- alpahabetically. An exception is thrown
+	if the JSON string is badly formatted, e.g. illegal chars, invalid escaping
+	Usage:
+	--start-of-code--
+	j := JSON.parse("[{""foo"": ""Hello World"", ""bar"":""AutoHotkey""}]")
+	MsgBox, % j[1].foo ; displays 'Hello World'
+	MsgBox, % j[1].bar ; displays 'AutoHotkey'
+	--end-of-code--
+	*/
 	parse(src) {
-		static object := {__type__:"object"} ; Fix this, create class
-		static array := {__type__:"array"} ; Fix this, create class
 		esc_char := {"""":"""", "/":"/", "b":Chr(08), "f":Chr(12), "n":"`n", "r":"`r", "t":"`t"}
 		null := "" ; needed??
 
+		/*
+		This loop is based on VxE's JSON_ToObj.ahk - thank you VxE
+		Quoted strings are extracted and temporarily stored in an object and
+		later on re-inserted while the result object is being created.
+		*/
 		i := 0, strings := []
 		while (i:=InStr(src, """",, i+1)) {
 			j := i
@@ -32,7 +52,7 @@ class JSON
 				else if (ch = "u") {
 					hex := "0x" . SubStr(str, z+2, 4)
 					if !(A_IsUnicode || (Abs(hex) < 0x100))
-						continue
+						continue ; throw Exception() ???
 					str := SubStr(str, 1, z-1) . Chr(hex) . SubStr(str, z+6)
 				
 				} else throw Exception("Bad string")
@@ -42,7 +62,7 @@ class JSON
 		
 		pos := 1, ch := " "
 		key := dummy := []
-		stack := [result:=new array], assert := "{[""tfn0123456789-"
+		stack := [result:=new JSON.array], assert := "{[""tfn0123456789-"
 		while (ch != "", ch:=SubStr(src, pos, 1), pos+=1) {
 			
 			while (ch != "" && InStr(" `t`r`n", ch)) ; skip whitespace
@@ -50,7 +70,7 @@ class JSON
 				;pos := RegExMatch(src, "\S", ch, pos)+1
 			/*
 			Check if the current character is expected or not
-			Speed is somehow sacrificed..
+			Acts as a simple validator for badly formatted JSON string
 			*/
 			if (assert != "") {
 				if !InStr(assert, ch)
@@ -63,40 +83,40 @@ class JSON
 				continue
 			}
 
-			if InStr("{[", ch) {
-				cont := stack[1], __base__ := (ch == "{" ? "object" : "array")
-				len := (i:=cont.MaxIndex()) ? i : 0
-				stack.Insert(1, cont[key == dummy ? len+1 : key] := new %__base__%)
+			if InStr("{[", ch) { ; object|array - opening
+				cont := stack[1], base := (ch == "{" ? "object" : "array")
+				len := (i:=ObjMaxIndex(cont)) ? i : 0
+				stack.Insert(1, cont[key == dummy ? len+1 : key] := new JSON[base])
 				key := dummy
 				assert := (ch == "{" ? """}" : "]{[""tfn0123456789-")
 				continue
 			
-			} else if InStr("}]", ch) {
+			} else if InStr("}]", ch) { ; object|array - closing
 				stack.Remove(1), assert := "]},"
 				continue
 			
-			} else if (ch == """") {
+			} else if (ch == """") { ; string
 				str := strings.Remove(1), cont := stack[1]
 				if (key == dummy) {
-					if (cont.__type__ == "array") {
-						key := ((i:=cont.MaxIndex()) ? i : 0)+1
+					if (cont.__Class == "JSON.array") {
+						key := ((i:=ObjMaxIndex(cont)) ? i : 0)+1
 					} else {
 						key := str, assert := ":"
 						continue
 					}
 				}
 				cont[key] := str, key := dummy
-				assert := "," . {"object":"}", "array":"]"}[cont.__type__]
+				assert := "," . (cont.__Class == "JSON.object" ? "}" : "]")
 				continue
 			
 			} else if (ch >= 0 && ch <= 9) || (ch == "-") { ; number
 				if !RegExMatch(src, "-?\d+(\.\d+)?((?i)E[-+]?\d+)?", num, pos-1)
 					throw Exception("Bad number", -1)
 				pos += StrLen(num)-1
-				cont := stack[1], len := (i:=cont.MaxIndex()) ? i : 0
+				cont := stack[1], len := (i:=ObjMaxIndex(cont)) ? i : 0
 				cont[key == dummy ? len+1 : key] := num
 				key := dummy
-				assert := "," . {"object":"}", "array":"]"}[cont.__type__]
+				assert := "," . (cont.__Class == "JSON.object" ? "}" : "]")
 				continue
 			
 			} else if InStr("tfn", ch, true) { ; true|false|null
@@ -108,10 +128,10 @@ class JSON
 						throw Exception("Expected '" c "' instead of " ch)
 				}
 
-				cont := stack[1], len := (i:=cont.MaxIndex()) ? i : 0
+				cont := stack[1], len := (i:=ObjMaxIndex(cont)) ? i : 0
 				cont[key == dummy ? len+1 : key] := %val%
 			    key := dummy
-			    assert := "," . {"object":"}", "array":"]"}[cont.__type__]
+			    assert := "," . (cont.__Class == "JSON.object" ? "}" : "]")
 			    continue
 			
 			} else {
@@ -122,7 +142,22 @@ class JSON
 		}
 		return result[1]
 	}
-
+	/*
+	Returns a string representation of an AHK object.
+	The 'i' (indent) parameter allows 'pretty printing'. Specify any char(s)
+	to use as indentation.
+	Usage: JSON.stringify(object, "`t") ; use tab as indentation
+	       JSON.stringify(object, "    ") ; 4-spaces indentation
+	       JSON.stringify(object) ; no indentation
+	Remarks:
+	JSON.object and JSON.array instance(s) may call this method, automatically
+	passing itself as the first parameter. If indententation is specified,
+	nested arrays [] are in OTB-style.
+	As per JSON spec, hex numbers are treated as strings - doing something
+	like: 'JSON.stringify([0xfff])' will output '0xffff' as decimal. To
+	output as string, wrap it in quotes: 'JSON.stringify(["0xffff"])'
+	0, 1 and ""(blank) are output as false, true and null respectively.
+ 	*/
 	stringify(obj:="", i:="", lvl:=1) {
 		if IsObject(obj) {
 			for k in obj
@@ -152,15 +187,9 @@ class JSON
 
 		else if obj is number
 		{
-			; Fix this
-			if (SubStr(obj, 1, 2) == "0x") || (obj ~= "i)[a-f]+")
-			{
-				afi := A_FormatInteger
-				SetFormat, Integer, h
-				obj += 0
-				SetFormat, Integer, % afi
-				return """" . obj . """"
-			}
+			if obj is xdigit
+				if obj is not digit
+					obj := """" . obj . """"
 			
 			return obj
 		}
@@ -188,10 +217,24 @@ class JSON
 			return """" . obj . """"
 		}
 	}
-
-	class __object__
+	/*
+	Base object for objects {} created during parsing. The user may also manually
+	create an insatnce of this class. The sole purpose of wrapping objects {} as
+	JSON.object instance is to allow enumeration of key-value pairs in the order
+	they were created. The len() method may be used to get the total count of
+	key-value pairs.
+	Usage: Instances are automatically created during parsing. The user may
+	       use the 'new' operator to create a JSON.object object manually.
+	--start-of-code--
+	obj := new JSON.object("key1", "value1", "key2", "value2")
+	obj["key3"] := "Add a new key-value pair"
+	MsgBox, % obj.stringify() ; display as string
+	; '{"key1": "value1", "key2": "value2", "key3": "Add a new key-value pair"}'
+	--end-of-code--
+	*/
+	class object
 	{
-
+		
 		__New(p*) {
 			ObjInsert(this, "_", [])
 			if Mod(p.MaxIndex(), 2)
@@ -208,7 +251,7 @@ class JSON
 		}
 
 		_NewEnum() {
-			return new JSON.__object__.Enum(this)
+			return new JSON.object.Enum(this)
 		}
 
 		Insert(k, v) {
@@ -229,6 +272,10 @@ class JSON
 			return this._.MaxIndex()
 		}
 
+		stringify(i:="") {
+			return JSON.stringify(this, i)
+		}
+
 		class Enum
 		{
 
@@ -236,12 +283,27 @@ class JSON
 				this.obj := obj
 				this.enum := obj._._NewEnum()
 			}
-
+			; Lexikos' ordered array workaround
 			Next(ByRef k, ByRef v:="") {
 				if (r:=this.enum.Next(i, k))
 					v := this.obj[k]
 				return r
 			}
+		}
+	}
+	/*
+	Base object for arrays [] created during parsing. Same as JSON.object above.
+	*/	
+	class array
+	{
+			
+		__New(p*) {
+			for k, v in p
+				this.Insert(v)
+		}
+
+		stringify(i:="") {
+			return JSON.stringify(this, i)
 		}
 	}
 }
