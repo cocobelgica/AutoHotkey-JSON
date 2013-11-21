@@ -160,7 +160,9 @@ class JSON
  	*/
 	stringify(obj:="", i:="", lvl:=1) {
 		if IsObject(obj) {
-			for k in obj
+			if (obj.base == JSON.object || obj.base == JSON.array)
+				arr := (obj.base == JSON.array ? true : false)
+			else for k in obj
 				arr := (k == A_Index)
 			until !arr
 
@@ -170,9 +172,11 @@ class JSON
 
 			lvl += 1
 			for k, v in obj {
+				if IsObject(k) || (k == "")
+					throw Exception("Invalid key.", -1)
 				if !arr
-					key := InStr(r:=JSON.stringify(k, i, lvl), """") == 1
-					       ? r : """" . r . """"
+					; integer key(s) are automatically wrapped in quotes
+					key := k+0 == k ? """" . k . """" : JSON.stringify(k)
 				val := JSON.stringify(v, i, lvl)
 				s := "," . (n ? n : " ") . t
 				str .= arr ? (val . s)
@@ -239,11 +243,8 @@ class JSON
 			ObjInsert(this, "_", [])
 			if Mod(p.MaxIndex(), 2)
 				p.Insert("")
-			for k, v in p {
-				if !Mod(A_Index, 2)
-					this[key] := v
-				else key := v
-			}
+			Loop, % p.MaxIndex()//2
+				this[p[A_Index*2-1]] := p[A_Index*2]
 		}
 
 		__Set(k, v, p*) {
@@ -258,13 +259,15 @@ class JSON
 			return this[k] := v
 		}
 
-		Remove(k) {
+		Remove(k) { ; restrict to single key
 			if !ObjHasKey(this, k)
 				return
 			for i, v in this._
 				continue
 			until (v = k)
 			this._.Remove(i)
+			if k is integer
+				return ObjRemove(this, k, "")
 			return ObjRemove(this, k)
 		}
 
