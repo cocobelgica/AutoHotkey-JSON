@@ -23,7 +23,18 @@ class JSON
 	--end-of-code--
 	*/
 	parse(src) {
-		esc_char := {"""":"""", "/":"/", "b":Chr(08), "f":Chr(12), "n":"`n", "r":"`r", "t":"`t"}
+		esc_char :=
+		(Join
+		{
+			"""": """",
+			"/": "/",
+			"b": Chr(08),
+			"f": Chr(12),
+			"n": "`n",
+			"r": "`r",
+			"t": "`t"
+		}
+		)
 		null := "" ; needed??
 
 		/*
@@ -154,12 +165,14 @@ class JSON
 	passing itself as the first parameter. If indententation is specified,
 	nested arrays [] are in OTB-style.
 	As per JSON spec, hex numbers are treated as strings - doing something
-	like: 'JSON.stringify([0xfff])' will output '0xffff' as decimal. To
+	like: 'JSON.stringify([0xffff])' will output '0xffff' as decimal. To
 	output as string, wrap it in quotes: 'JSON.stringify(["0xffff"])'
 	0, 1 and ""(blank) are output as false, true and null respectively.
  	*/
 	stringify(obj:="", i:="", lvl:=1) {
 		if IsObject(obj) {
+			if (ComObjValue(x) != "") ; COM Object
+				throw Exception("COM Object(s) are not supported.")
 			if (obj.base == JSON.object || obj.base == JSON.array)
 				arr := (obj.base == JSON.array ? true : false)
 			else for k in obj
@@ -185,27 +198,26 @@ class JSON
 			str := n . t . Trim(str, ",`n`t ") . n . SubStr(t, StrLen(i)+1)
 			return arr ? "[" str "]" : "{" str "}"
 		}
-
+		; true|false|null
 		else if InStr(01, obj) || (obj == "")
 			return {"": "null", 0:"false", 1:"true"}[obj]
+		; String
+		else if [obj].GetCapacity(1) {
+			if obj is float
+				return obj
 
-		else if obj is number
-		{
-			if obj is xdigit
-				if obj is not digit
-					obj := """" . obj . """"
-			
-			return obj
-		}
-
-		else {
-			esc_char := {"""":"\"""
-			           , "/":"\/"
-			           , Chr(08):"\b"
-			           , Chr(12):"\f"
-			           , "`n":"\n"
-			           , "`r":"\r"
-			           , "`t":"\t"}
+			esc_char :=
+			(Join
+			{
+			    """": "\""",
+			    "/": "\/",
+			    Chr(08): "\b",
+			    Chr(12): "\f",
+			    "`n": "\n",
+			    "`r": "\r",
+			    "`t": "\t"
+			}
+			)
 			
 			StringReplace, obj, obj, \, \\, A
 			for k, v in esc_char
@@ -220,6 +232,12 @@ class JSON
 			}
 			return """" . obj . """"
 		}
+		; Number
+		if obj is xdigit
+			if obj is not digit
+				obj := """" . obj . """"
+		
+		return obj
 	}
 	/*
 	Base object for objects {} created during parsing. The user may also manually
