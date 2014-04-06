@@ -23,9 +23,8 @@ class JSON
 	--end-of-code--
 	*/
 	parse(src) {
-		esc_char :=
+		esc_char := {
 		(Join
-		{
 			"""": """",
 			"/": "/",
 			"b": Chr(08),
@@ -33,8 +32,7 @@ class JSON
 			"n": "`n",
 			"r": "`r",
 			"t": "`t"
-		}
-		)
+		)}
 		null := "" ; needed??
 
 		/*
@@ -206,9 +204,8 @@ class JSON
 			if obj is float
 				return obj
 
-			esc_char :=
+			esc_char := {
 			(Join
-			{
 			    """": "\""",
 			    "/": "\/",
 			    Chr(08): "\b",
@@ -216,8 +213,7 @@ class JSON
 			    "`n": "\n",
 			    "`r": "\r",
 			    "`t": "\t"
-			}
-			)
+			)}
 			
 			StringReplace, obj, obj, \, \\, A
 			for k, v in esc_char
