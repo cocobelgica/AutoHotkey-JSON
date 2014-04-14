@@ -94,7 +94,7 @@ class JSON
 
 			if InStr("{[", ch) { ; object|array - opening
 				cont := stack[1], base := (ch == "{" ? "object" : "array")
-				len := (i:=ObjMaxIndex(cont)) ? i : 0
+				len := Round(ObjMaxIndex(cont))
 				stack.Insert(1, cont[key == dummy ? len+1 : key] := new JSON[base])
 				key := dummy
 				assert := (ch == "{" ? """}" : "]{[""tfn0123456789-")
@@ -108,7 +108,7 @@ class JSON
 				str := strings.Remove(1), cont := stack[1]
 				if (key == dummy) {
 					if (cont.__Class == "JSON.array") {
-						key := ((i:=ObjMaxIndex(cont)) ? i : 0)+1
+						key := Round(ObjMaxIndex(cont))+1
 					} else {
 						key := str, assert := ":"
 						continue
@@ -122,7 +122,7 @@ class JSON
 				if !RegExMatch(src, "-?\d+(\.\d+)?((?i)E[-+]?\d+)?", num, pos-1)
 					throw Exception("Bad number", -1)
 				pos += StrLen(num)-1
-				cont := stack[1], len := (i:=ObjMaxIndex(cont)) ? i : 0
+				cont := stack[1], len := Round(ObjMaxIndex(cont))
 				cont[key == dummy ? len+1 : key] := num
 				key := dummy
 				assert := "," . (cont.__Class == "JSON.object" ? "}" : "]")
@@ -137,11 +137,11 @@ class JSON
 						throw Exception("Expected '" c "' instead of " ch)
 				}
 
-				cont := stack[1], len := (i:=ObjMaxIndex(cont)) ? i : 0
+				cont := stack[1], len := Round(ObjMaxIndex(cont))
 				cont[key == dummy ? len+1 : key] := %val%
-			    key := dummy
-			    assert := "," . (cont.__Class == "JSON.object" ? "}" : "]")
-			    continue
+				key := dummy
+				assert := "," . (cont.__Class == "JSON.object" ? "}" : "]")
+				continue
 			
 			} else {
 				if (ch != "")
