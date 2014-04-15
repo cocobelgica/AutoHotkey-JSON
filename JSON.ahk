@@ -286,7 +286,7 @@ class JSON
 		}
 
 		len() {
-			return this._.MaxIndex()
+			return Round(this._.MaxIndex())
 		}
 
 		stringify(i:="") {
