@@ -171,7 +171,7 @@ class JSON
 		__New(p*) {
 			ObjInsert(this, "_", [])
 			if Mod(p.MaxIndex(), 2), p.Insert("")
-			Loop, % p.MaxIndex()//2
+			Loop p.MaxIndex()//2
 				this[p[A_Index*2-1]] := p[A_Index*2]
 		}
 
@@ -190,14 +190,15 @@ class JSON
 		Remove(k) { ; restrict to single key
 			if !ObjHasKey(this, k), return
 			for i, v in this._
-				if (v = k), break
-			this._.Remove(i)
+				idx := i
+			until (v = k)
+			this._.Remove(idx)
 			if k is 'integer', return ObjRemove(this, k, "")
 			return ObjRemove(this, k)
 		}
 
 		len() {
-			return this._.MaxIndex()
+			return (this._.MaxIndex() || 0)
 		}
 
 		stringify(i:="") {
