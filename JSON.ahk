@@ -187,14 +187,32 @@ class JSON
 			return this[k] := v
 		}
 
-		Remove(k) { ; restrict to single key
-			if !ObjHasKey(this, k), return
-			for i, v in this._
-				idx := i
-			until (v = k)
-			this._.Remove(idx)
-			if k is 'integer', return ObjRemove(this, k, "")
-			return ObjRemove(this, k)
+		Remove(k*) {
+			ascs := A_StringCaseSense
+			A_StringCaseSense := 'Off'
+			if (k.MaxIndex() > 1) {
+				k1 := k[1], k2 := k[2], is_int := false
+				if k1 is 'integer' && k2 is 'integer'
+					k1 := Round(k1), k2 := Round(k2), is_int := true
+				while true {
+					for each, key in this._
+						i := each
+					until found:=(key >= k1 && key <= k2)
+					if !found, break
+					key := this._.Remove(i)
+					ObjRemove(this, (is_int ? [key, ''] : [key])*)
+					res := A_Index
+				}
+			
+			} else for each, key in this._ {
+				if (key = (k.MaxIndex() ? k[1] : ObjMaxIndex(this))) {
+					key := this._.Remove(each)
+					res := ObjRemove(this, (key is 'integer' ? [key, ''] : [key])*)
+					break
+				}
+			}
+			A_StringCaseSense := ascs
+			return res
 		}
 
 		len() {
