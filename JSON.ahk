@@ -5,8 +5,8 @@ class JSON
 		(Q
 			'"': '"',
 			'/': '/',
-			'b': Chr(08),
-			'f': Chr(12),
+			'b': '`b',
+			'f': '`f',
 			'n': '`n',
 			'r': '`r',
 			't': '`t'
@@ -41,7 +41,7 @@ class JSON
 		stack := [result:=new JSON.array], assert := '{["tfn0123456789-'
 		while (ch != "") {
 			ch := SubStr(src, pos, 1), pos += 1
-			while (ch != "" && InStr(" `t`r`n", ch))
+			while (ch != "" && InStr(" `t`n`r", ch))
 				ch := SubStr(src, pos, 1), pos += 1
 			if (assert != "") {
 				if !InStr(assert, ch), throw Exception("Unexpected '%ch%'", -1)
@@ -146,8 +146,8 @@ class JSON
 			(Q
 				'"': '\"',
 				'/': '\/',
-				Chr(08): '\b',
-				Chr(12): '\f',
+				'`b': '\b',
+				'`f': '\f',
 				'`n': '\n',
 				'`r': '\r',
 				'`t': '\t'
