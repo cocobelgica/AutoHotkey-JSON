@@ -27,8 +27,8 @@ class JSON
 		(Join
 			"""": """",
 			"/": "/",
-			"b": Chr(08),
-			"f": Chr(12),
+			"b": "`b",
+			"f": "`f",
 			"n": "`n",
 			"r": "`r",
 			"t": "`t"
@@ -74,7 +74,7 @@ class JSON
 		stack := [result:=new JSON.array], assert := "{[""tfn0123456789-"
 		while (ch != "", ch:=SubStr(src, pos, 1), pos+=1) {
 			
-			while (ch != "" && InStr(" `t`r`n", ch)) ; skip whitespace
+			while (ch != "" && InStr(" `t`n`r", ch)) ; skip whitespace
 				ch := SubStr(src, pos, 1), pos += 1
 				;pos := RegExMatch(src, "\S", ch, pos)+1
 			/*
@@ -208,8 +208,8 @@ class JSON
 			(Join
 			    """": "\""",
 			    "/": "\/",
-			    Chr(08): "\b",
-			    Chr(12): "\f",
+			    "`b": "\b",
+			    "`f": "\f",
 			    "`n": "\n",
 			    "`r": "\r",
 			    "`t": "\t"
