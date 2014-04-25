@@ -54,9 +54,9 @@ class JSON
 			}
 
 			if InStr("{[", ch) { ; object|array - opening
-				cnt := stack[1], base := (ch == '{' ? 'object' : 'array')
-				len := (ObjMaxIndex(cnt) || 0)
-				stack.Insert(1, cnt[key == dummy ? len+1 : key] := new JSON[base])
+				cont := stack[1], base := (ch == '{' ? 'object' : 'array')
+				len := (ObjMaxIndex(cont) || 0)
+				stack.Insert(1, cont[key == dummy ? len+1 : key] := new JSON[base])
 				key := dummy
 				assert := (ch == '{' ? '"}' : ']{["tfn0123456789-')
 				continue
@@ -66,27 +66,27 @@ class JSON
 				continue
 			
 			} else if (ch == '"') { ; string
-				str := strings.Remove(1), cnt := stack[1]
+				str := strings.Remove(1), cont := stack[1]
 				if (key == dummy) {
-					if cnt is JSON.array {
-						key := (ObjMaxIndex(cnt) || 0)+1
+					if cont is JSON.array {
+						key := (ObjMaxIndex(cont) || 0)+1
 					} else {
 						key := str, assert := ":"
 						continue
 					}
 				}
-				cnt[key] := str, key := dummy
-				assert := ",%(cnt is JSON.object ? '}' : ']')%"
+				cont[key] := str, key := dummy
+				assert := ",%(cont is JSON.object ? '}' : ']')%"
 				continue
 			
 			} else if (ch >= 0 && ch <= 9) || (ch == "-") { ; number
 				if !RegExMatch(src, "-?\d+(\.\d+)?((?i)E[-+]?\d+)?", num, pos-1)
 					throw Exception("Bad number", -1)
 				pos += StrLen(num.Value)-1
-				cnt := stack[1], len := (ObjMaxIndex(cnt) || 0)
-				cnt[key == dummy ? len+1 : key] := num.Value+0 ; convert to pure number
+				cont := stack[1], len := (ObjMaxIndex(cont) || 0)
+				cont[key == dummy ? len+1 : key] := num.Value+0 ; convert to pure number
 				key := dummy
-				assert := ",%(cnt is JSON.object ? '}' : ']')%"
+				assert := ",%(cont is JSON.object ? '}' : ']')%"
 				continue
 			
 			} else if InStr("tfn", ch, true) { ; true|false|null
@@ -98,10 +98,10 @@ class JSON
 						throw Exception("Expected '%c%' instead of %ch%")
 				}
 
-				cnt := stack[1], len := (ObjMaxIndex(cnt) || 0)
-				cnt[key == dummy ? len+1 : key] := Abs(%val%)
+				cont := stack[1], len := (ObjMaxIndex(cont) || 0)
+				cont[key == dummy ? len+1 : key] := Abs(%val%)
 				key := dummy
-				assert := ",%(cnt is JSON.object ? '}' : ']')%"
+				assert := ",%(cont is JSON.object ? '}' : ']')%"
 				continue
 			
 			} else {
