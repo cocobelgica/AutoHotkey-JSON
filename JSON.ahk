@@ -18,7 +18,7 @@ class JSON
 			while (j:=InStr(src, '"',, j+1)) {
 				str := SubStr(src, i+1, j-i-1)
 				str := StrReplace(str, "\\", "\u005C")
-				if (SubStr(str, 0) != "\")
+				if (SubStr(str, -1) != "\")
 					break
 			}
 			src := SubStr(src, 1, i-1) . SubStr(src, j)
