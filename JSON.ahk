@@ -132,7 +132,7 @@ class JSON
 				, key := dummy
 			
 			} else if (ch >= 0 && ch <= 9) || (ch == "-") { ;// number
-				if !RegExMatch(src, "-?\d+(\.\d+)?((?i)E[-+]?\d+)?", num, pos-1)
+				if !RegExMatch(src, "-?\d+(\.\d+)?((?i)E[-+]?\d+)?", num, pos)
 					throw Exception("Bad number", -1)
 				pos += StrLen(num.Value)-1
 				, cont := stack[1]
