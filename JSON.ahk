@@ -1,28 +1,35 @@
-/*
-JSON module for AutoHotkey [requires v.1.1+, tested on v.1.1.13.01]
-
-The parser is inspired by Douglas Crockford's(json.org) json_parse.js and
-and Mike Samuel's json_sans_eval.js (https://code.google.com/p/json-sans-eval/).
-I've combined the two implementation to create a fast(somehow:P) and validating
-JSON parser. Some section(s) are based on VxE's JSON function(s) - 
-[http://www.ahkscript.org/boards/viewtopic.php?f=6&t=30] - Thank you VxE
-*/
+/* JSON module for AutoHotkey [requires v.1.1+, tested on v.1.1.13.01]
+ * The parser is inspired by Douglas Crockford's(json.org) json_parse.js and
+ * and Mike Samuel's json_sans_eval.js (https://code.google.com/p/json-sans-eval/).
+ * I've combined the two implementation to create a fast(somehow:P) and validating
+ * JSON parser. Some section(s) are based on VxE's JSON function(s) - 
+ * [http://www.ahkscript.org/boards/viewtopic.php?f=6&t=30] - Thank you VxE
+ */
 class JSON
 {
-	/*
-	Parses a string containing JSON string and returns it as an AHK object.
-	Objects {} and arrays [] are wrapped as JSON.object and JSON.array instances.
-	Objects {} key-value pairs are enumerated in the order they are created
-	instead of the default behavior -- alpahabetically. An exception is thrown
-	if the JSON string is badly formatted, e.g. illegal chars, invalid escaping
-	Usage:
-	--start-of-code--
-	j := JSON.parse("[{""foo"": ""Hello World"", ""bar"":""AutoHotkey""}]")
-	MsgBox, % j[1].foo ; displays 'Hello World'
-	MsgBox, % j[1].bar ; displays 'AutoHotkey'
-	--end-of-code--
-	*/
+	static _object := {} ;// object(s)/'{}' are derived from this -> no special behavior
+	static _array := [] ;// array(s)/'[]' are derived from this -> no special behavior
+	/* If 'OutputNormal' class property is set to true, object(s)/array(s) and
+	 * their descendants are returned as normal AHK object(s). Otherwise,
+	 * they're wrapped as instance(s) of JSON.object and JSON.array.
+	 */
+	static OutputNormal := true
+
 	parse(src) {
+		;// Pre-validate JSON source before parsing
+		if ((src:=Trim(src, " `t`n`r")) == "") ;// trim whitespace(s)
+			throw Exception("Empty JSON source.")
+		first := SubStr(src, 1, 1), last := SubStr(src, 0)
+		if !InStr("{[""tfn0123456789-", first) ;// valid beginning chars
+		|| !InStr("}]""el0123456789", last) ;// valid ending chars
+		|| (first == "{" && last != "}") ;// if starts w/ '{' must end w/ '}'
+		|| (first == "[" && last != "]") ;// if starts w/ '[' must end w/ ']'
+		|| (first == """" && last != """") ;// if starts w/ '"' must end w/ '"'
+		|| (first == "n" && last != "l") ;// assume 'null'
+		|| (InStr("tf", first) && last != "e") ;// assume 'true' OR 'false'
+		|| (InStr("-0123456789", first) && !InStr("0123456789", last)) ;// number
+			throw Exception("Invalid JSON format.", -1)
+
 		esc_char := {
 		(Join
 			"""": """",
@@ -33,13 +40,10 @@ class JSON
 			"r": "`r",
 			"t": "`t"
 		)}
-		null := "" ; needed??
-
-		/*
-		This loop is based on VxE's JSON_ToObj.ahk - thank you VxE
-		Quoted strings are extracted and temporarily stored in an object and
-		later on re-inserted while the result object is being created.
-		*/
+		/* This loop is based on VxE's JSON_ToObj.ahk - thank you VxE
+		 * Quoted strings are extracted and temporarily stored in an object and
+		 * later on re-inserted while the result object is being created.
+		 */
 		i := 0, strings := []
 		while (i:=InStr(src, """",, i+1)) {
 			j := i
@@ -49,124 +53,147 @@ class JSON
 				if (SubStr(str, 0) != "\")
 					break
 			}
-
+			if !j
+				throw Exception("Missing close quote(s).", -1)
 			src := SubStr(src, 1, i-1) . SubStr(src, j)
-
 			z := 0
 			while (z:=InStr(str, "\",, z+1)) {
 				ch := SubStr(str, z+1, 1)
-				if InStr("""btnfr/", ch) ; esc_char.HasKey(ch)
+				if InStr("""btnfr/", ch) ;// esc_char.HasKey(ch)
 					str := SubStr(str, 1, z-1) . esc_char[ch] . SubStr(str, z+2)
 				
 				else if (ch = "u") {
 					hex := "0x" . SubStr(str, z+2, 4)
 					if !(A_IsUnicode || (Abs(hex) < 0x100))
-						continue ; throw Exception() ???
+						continue ;// throw Exception() ???
 					str := SubStr(str, 1, z-1) . Chr(hex) . SubStr(str, z+6)
 				
 				} else throw Exception("Bad string")
 			}
 			strings.Insert(str)
 		}
-		
-		pos := 1, ch := " "
-		key := dummy := []
-		stack := [result:=new JSON.array], assert := "{[""tfn0123456789-"
-		while (ch != "", ch:=SubStr(src, pos, 1), pos+=1) {
-			
-			while (ch != "" && InStr(" `t`n`r", ch)) ; skip whitespace
-				ch := SubStr(src, pos, 1), pos += 1
-				;pos := RegExMatch(src, "\S", ch, pos)+1
-			/*
-			Check if the current character is expected or not
-			Acts as a simple validator for badly formatted JSON string
-			*/
+		;// Check for missing opening/closing brace(s)
+		if InStr(src, "{") || InStr(src, "}") {
+			StringReplace, dummy, src, {, {, UseErrorLevel
+			c1 := ErrorLevel
+			StringReplace, dummy, src, }, }, UseErrorLevel
+			c2 := ErrorLevel
+			if (c1 != c2)
+				throw Exception("Missing " . Abs(c1-c2)
+				. (c1 > c2 ? "clos" : "open") . "ing brace(s)", -1)
+		}
+		;// Check for missing opening/closing bracket(s)
+		if InStr(src, "[") || InStr(src, "]") {
+			StringReplace, dummy, src, [, [, UseErrorLevel
+			c1 := ErrorLevel
+			StringReplace, dummy, src, ], ], UseErrorLevel
+			c2 := ErrorLevel
+			if (c1 != c2)
+				throw Exception("Missing " . Abs(c1-c2)
+				. (c1 > c2 ? "clos" : "open") . "ing bracket(s)", -1)
+		}
+		/* Determine whether to subclass objects/arrays as JSON.object and
+		 * JSON.array. The user can set this setting via the JSON.OutputNormal
+		 * class property.
+		 */
+		if this.OutputNormal
+			_object := this._object, _array := this._array
+		else (_object := this.object, _array := this.array)
+		pos := 0
+		, key := dummy := []
+		, stack := [result := []]
+		, assert := "" ;// "{[""tfn0123456789-"
+		, null := ""
+		;// Begin recursive descent
+		while ((ch := SubStr(src, ++pos, 1)) != "") {
+			;// skip whitespace
+			while (ch != "" && InStr(" `t`n`r", ch))
+				ch := SubStr(src, ++pos, 1)
+			;// check if current char is expected or not
 			if (assert != "") {
 				if !InStr(assert, ch)
 					throw Exception("Unexpected '" . ch . "'", -1)
 				assert := ""
 			}
 			
-			if InStr(":,", ch) {
-				assert := "{[""tfn0123456789-"
-				continue
-			}
-
-			if InStr("{[", ch) { ; object|array - opening
-				cont := stack[1], base := (ch == "{" ? "object" : "array")
-				len := Round(ObjMaxIndex(cont))
-				stack.Insert(1, cont[key == dummy ? len+1 : key] := new JSON[base])
-				key := dummy
-				assert := (ch == "{" ? """}" : "]{[""tfn0123456789-")
-				continue
+			if InStr(":,", ch) { ;// colon(s) and comma(s)
+				if (cont == result)
+					throw Exception("Unexpected '" . ch . "' -> there is no "
+					. "container object/array.")
+				assert := """"
+				if (ch == ":" || cont.base != _object)
+					assert .= "{[tfn0123456789-"
 			
-			} else if InStr("}]", ch) { ; object|array - closing
-				stack.Remove(1), assert := "]},"
-				continue
+			} else if InStr("{[", ch) { ; object|array - opening
+				cont := stack[1]
+				, sub := ch == "{" ? new _object : new _array
+				, stack.Insert(1, cont[key == dummy ? Round(ObjMaxIndex(cont))+1 : key] := sub)
+				, assert := (ch == "{" ? """}" : "]{[""tfn0123456789-")
+				if (key != dummy)
+					key := dummy
 			
-			} else if (ch == """") { ; string
+			} else if InStr("}]", ch) { ;// object|array - closing
+				stack.Remove(1), cont := stack[1]
+				assert := (cont.base == _object) ? "}," : "],"
+			
+			} else if (ch == """") { ;// string
 				str := strings.Remove(1), cont := stack[1]
 				if (key == dummy) {
-					if (cont.__Class == "JSON.array") {
+					if (cont.base == _array || cont == result) {
 						key := Round(ObjMaxIndex(cont))+1
 					} else {
 						key := str, assert := ":"
 						continue
 					}
 				}
-				cont[key] := str, key := dummy
-				assert := "," . (cont.__Class == "JSON.object" ? "}" : "]")
-				continue
+				cont[key] := str
+				, assert := (cont.base == _object ? "}," : "],")
+				, key := dummy
 			
-			} else if (ch >= 0 && ch <= 9) || (ch == "-") { ; number
-				if !RegExMatch(src, "-?\d+(\.\d+)?((?i)E[-+]?\d+)?", num, pos-1)
+			} else if (ch >= 0 && ch <= 9) || (ch == "-") { ;// number
+				if !RegExMatch(src, "-?\d+(\.\d+)?((?i)E[-+]?\d+)?", num, pos)
 					throw Exception("Bad number", -1)
 				pos += StrLen(num)-1
-				cont := stack[1], len := Round(ObjMaxIndex(cont))
-				cont[key == dummy ? len+1 : key] := num
-				key := dummy
-				assert := "," . (cont.__Class == "JSON.object" ? "}" : "]")
-				continue
+				, cont := stack[1]
+				, cont[key == dummy ? Round(ObjMaxIndex(cont))+1 : key] := num+0
+				, assert := (cont.base == _object ? "}," : "],")
+				if (key != dummy)
+					key := dummy
 			
-			} else if InStr("tfn", ch, true) { ; true|false|null
+			} else if InStr("tfn", ch, true) { ;// true|false|null
 				val := {t:"true", f:"false", n:"null"}[ch]
-				; advance to next char, first char has already been validated
+				;// advance to next char, first char has already been validated
 				while (c:=SubStr(val, A_Index+1, 1)) {
-					ch := SubStr(src, pos, 1), pos += 1
-					if !(ch == c) ; case-sensitive comparison
+					ch := SubStr(src, ++pos, 1)
+					if !(ch == c) ;// case-sensitive comparison
 						throw Exception("Expected '" c "' instead of " ch)
 				}
 
-				cont := stack[1], len := Round(ObjMaxIndex(cont))
-				cont[key == dummy ? len+1 : key] := %val%
-				key := dummy
-				assert := "," . (cont.__Class == "JSON.object" ? "}" : "]")
-				continue
+				cont := stack[1]
+				, cont[key == dummy ? Round(ObjMaxIndex(cont))+1 : key] := %val%
+				, assert := (cont.base == _object ? "}," : "],")
+				if (key != dummy)
+					key := dummy
 			
-			} else {
-				if (ch != "")
-					throw Exception("Unexpected '" . ch . "'", -1)
-				else break
 			}
 		}
 		return result[1]
 	}
-	/*
-	Returns a string representation of an AHK object.
-	The 'i' (indent) parameter allows 'pretty printing'. Specify any char(s)
-	to use as indentation.
-	Usage: JSON.stringify(object, "`t") ; use tab as indentation
-	       JSON.stringify(object, "    ") ; 4-spaces indentation
-	       JSON.stringify(object) ; no indentation
-	Remarks:
-	JSON.object and JSON.array instance(s) may call this method, automatically
-	passing itself as the first parameter. If indententation is specified,
-	nested arrays [] are in OTB-style.
-	As per JSON spec, hex numbers are treated as strings - doing something
-	like: 'JSON.stringify([0xffff])' will output '0xffff' as decimal. To
-	output as string, wrap it in quotes: 'JSON.stringify(["0xffff"])'
-	0, 1 and ""(blank) are output as false, true and null respectively.
- 	*/
+	/* Returns a string representation of an AHK object.
+	 * The 'i' (indent) parameter allows 'pretty printing'. Specify any char(s)
+	 * to use as indentation.
+	 * Usage: JSON.stringify(object, "`t") ; use tab as indentation
+	 *        JSON.stringify(object, "    ") ; 4-spaces indentation
+	 *        JSON.stringify(object) ; no indentation
+	 * Remarks:
+	 * JSON.object and JSON.array instance(s) may call this method, automatically
+	 * passing itself as the first parameter. If indententation is specified,
+	 * nested arrays [] are in OTB-style.
+	 * As per JSON spec, hex numbers are treated as strings - doing something
+	 * like: 'JSON.stringify([0xffff])' will output '0xffff' as decimal. To
+	 * output as string, wrap it in quotes: 'JSON.stringify(["0xffff"])'
+	 * 0, 1 and ""(blank) are output as false, true and null respectively.
+ 	 */
 	stringify(obj:="", i:="", lvl:=1) {
 		if IsObject(obj) {
 			if (ComObjValue(x) != "") ; COM Object
@@ -189,9 +216,14 @@ class JSON
 					; integer key(s) are automatically wrapped in quotes
 					key := k+0 == k ? """" . k . """" : JSON.stringify(k)
 				val := JSON.stringify(v, i, lvl)
-				s := "," . (n ? n : " ") . t
-				str .= arr ? (val . s)
-				           : key . ":" . ((IsObject(v) && InStr(val, "{") == 1) ? n . t : " ") . val . s
+				;// format output
+				str .= (arr
+				? ""
+				: key . ":"
+				. ((IsObject(v) && InStr(val, "{") == 1) ;// if value is {}
+				? (n . t) ;// put opening '{' to next line, else OTB if '['
+				: (i ? " " : ""))) ;// put space after ':' if indented
+				. (val . "," . (n ? n : "") . t) ;// value+comma+[newline+indent]
 			}
 			str := n . t . Trim(str, ",`n`t ") . n . SubStr(t, StrLen(i)+1)
 			return arr ? "[" str "]" : "{" str "}"
@@ -228,28 +260,27 @@ class JSON
 			}
 			return """" . obj . """"
 		}
-		; Number
+		;// Number
 		if obj is xdigit
 			if obj is not digit
 				obj := """" . obj . """"
 		
 		return obj
 	}
-	/*
-	Base object for objects {} created during parsing. The user may also manually
-	create an insatnce of this class. The sole purpose of wrapping objects {} as
-	JSON.object instance is to allow enumeration of key-value pairs in the order
-	they were created. The len() method may be used to get the total count of
-	key-value pairs.
-	Usage: Instances are automatically created during parsing. The user may
-	       use the 'new' operator to create a JSON.object object manually.
-	--start-of-code--
-	obj := new JSON.object("key1", "value1", "key2", "value2")
-	obj["key3"] := "Add a new key-value pair"
-	MsgBox, % obj.stringify() ; display as string
-	; '{"key1": "value1", "key2": "value2", "key3": "Add a new key-value pair"}'
-	--end-of-code--
-	*/
+	/* Base object for objects {} created during parsing. The user may also manually
+	 * create an insatnce of this class. The sole purpose of wrapping objects {} as
+	 * JSON.object instance is to allow enumeration of key-value pairs in the order
+	 * they were created. The len() method may be used to get the total count of
+	 * key-value pairs.
+	 * Usage: Instances are automatically created during parsing. The user may
+	 *        use the 'new' operator to create a JSON.object object manually.
+	 * --start-of-code--
+	 * obj := new JSON.object("key1", "value1", "key2", "value2")
+	 * obj["key3"] := "Add a new key-value pair"
+	 * MsgBox, % obj.stringify() ; display as string
+	 * ; '{"key1": "value1", "key2": "value2", "key3": "Add a new key-value pair"}'
+	 * --end-of-code--
+	 */
 	class object
 	{
 		
@@ -325,9 +356,9 @@ class JSON
 			}
 		}
 	}
-	/*
-	Base object for arrays [] created during parsing. Same as JSON.object above.
-	*/	
+	/* Base object for arrays [] created during parsing.
+	 * Same as JSON.object above.
+	 */	
 	class array
 	{
 			
