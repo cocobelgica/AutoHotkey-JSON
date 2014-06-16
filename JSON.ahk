@@ -1,14 +1,6 @@
 class JSON
 {
-	static _object := {} ;// object(s)/'{}' are derived from this -> no special behavior
-	static _array := [] ;// array(s)/'[]' are derived from this -> no special behavior
-	/* If 'OutputNormal' class property is set to true, object(s)/array(s) and
-	 * their descendants are returned as normal AHK object(s). Otherwise,
-	 * they're wrapped as instance(s) of JSON.object and JSON.array.
-	 */
-	static OutputNormal := true
-
-	parse(src) {
+	parse(src, jsonize:=false) {
 		;// Pre-validate JSON source before parsing
 		if ((src:=Trim(src, " `t`n`r")) == "") ;// trim whitespace(s)
 			throw Exception('Empty JSON source.')
@@ -75,12 +67,8 @@ class JSON
 			Missing %Abs(c1-c2)% %(c1 > c2 ? 'clos' : 'open')%ing bracket(s)
 			)", -1)
 		}
-		/* Determine whether to subclass objects/arrays as JSON.object and
-		 * JSON.array. The user can set this setting via the JSON.OutputNormal
-		 * class property.
-		 */
-		if this.OutputNormal, (_object := this._object, _array := this._array)
-		else (_object := this.object, _array := this.array)
+		if jsonize, (_object := this.object, _array := this.array)
+		else (_object := Object(), _array := Array())
 		pos := 0
 		, key := dummy := []
 		, stack := [result := []]
@@ -114,7 +102,10 @@ class JSON
 				if (key != dummy), key := dummy
 			
 			} else if InStr("}]", ch) { ;// object|array - closing
-				stack.Remove(1), cont := stack[1]
+				cont := stack.Remove(1)
+				;// remove base if set to output normal AHK object(s)
+				if !jsonize, cont.base := ""
+				cont := stack[1]
 				, assert := cont is _object ? '},' : '],'
 			
 			} else if (ch == '"') { ;// string
@@ -158,33 +149,36 @@ class JSON
 		return result[1]
 	}
 
-	stringify(obj:="", i:="", lvl:=1) {
+	stringify(obj:="", indent:="", lvl:=1) {
 		type := Type(obj)
 		if (type == "Object") {
-			if (obj is JSON.object || obj is JSON.array
-			|| obj is JSON._object || obj is JSON._array)
-				arr := (obj is JSON.array || obj is JSON._array)
-			else for k in obj
+			for k in obj
 				if !(arr := (k == A_Index)), break
 			
-			n := i ? "`n" : (i:="", t:="")
-			Loop, % i ? lvl : 0
-				t .= i
+			n := indent ? "`n" : (i := indent := "")
+			Loop, % indent ? lvl : 0
+				i .= indent
 			
-			lvl += 1
+			lvl += 1, str := "" ;// make #Warn happy
 			for k, v in obj {
 				if IsObject(k) || (k == ""), throw Exception("Invalid key.", -1)
 				if !arr, key := k is 'number' ? '"%k%"' : JSON.stringify(k)
-				val := JSON.stringify(v, i, lvl)
+				val := JSON.stringify(v, indent, lvl)
 				;// format output
 				str .= (arr ? "" : "
 				(LTrim Join Q C
-				%key%:%((IsObject(v) && InStr(val, '{') == 1) ;// if value is {}
-				? (n . t) ;// put opening '{' to next line, else OTB if '['
-				: (i ? ' ' : ''))% ;// put space after ':' if indented
-				)") . "%val%,%(n ? n : '') . t%" ;// value+comma+[newline+indent]
+				%key%:%(indent
+				? (IsObject(v) && InStr(val, '{') == 1 && val != '{}')
+				  ? n . i
+				  : ' '
+				: '')%
+				)") . "%val%,%(indent ? n . i : '')%"
 			}
-			str := n . t . Trim(str, ",`n`t ") . n . SubStr(t, StrLen(i)+1)
+			;// trim and pad
+			if (str != "") {
+				str := Trim(str, ",`n`t ")
+				if indent, str := n . i . str . n . SubStr(i, StrLen(indent)+1)
+			}
 			return arr ? "[%str%]" : "{%str%}"
 		
 		} else if (type == "Integer" || type == "Float") {
@@ -265,14 +259,8 @@ class JSON
 			return res
 		}
 
-		__Remove(k) { ; restrict to single key
-			if !ObjHasKey(this, k), return
-			for i, v in this._
-				idx := i
-			until (v = k)
-			this._.Remove(idx)
-			if k is 'integer', return ObjRemove(this, k, "")
-			return ObjRemove(this, k)
+		GetCapacity(k*) {
+			return ObjGetCapacity((k.MinIndex() ? [this, k[1]] : [this._])*)
 		}
 
 		len() {
