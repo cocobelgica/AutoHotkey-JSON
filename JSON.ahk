@@ -36,7 +36,7 @@ class JSON
 					break
 			}
 			if !j, throw Exception("Missing close quote(s).", -1)
-			src := SubStr(src, 1, i-1) . SubStr(src, j)
+			src := SubStr(src, 1, i) . SubStr(src, j+1)
 			z := 0
 			while (z:=InStr(str, "\",, z+1)) {
 				ch := SubStr(str, z+1, 1)
@@ -111,12 +111,12 @@ class JSON
 			} else if (ch == '"') { ;// string
 				str := strings.Remove(1), cont := stack[1]
 				if (key == dummy) {
-					if (cont is _array || cont == result) {
-						key := (ObjMaxIndex(cont) || 0)+1
-					} else {
-						key := str, assert := ":"
+					if (cont is _object) {
+						key := str, assert := ':'
 						continue
 					}
+					;// _array or result | using 'else' seems faster, sometimes
+					else key := (ObjMaxIndex(cont) || 0)+1
 				}
 				cont[key] := str
 				, assert := cont is _object ? '},' : '],'
@@ -132,14 +132,22 @@ class JSON
 				if (key != dummy), key := dummy
 			
 			} else if InStr("tfn", ch, true) { ;// true|false|null
-				val := {t:"true", f:"false", n:"null"}[ch]
+				/* Ternary seems faster compared to object ->
+				 * val := {t:"true", f:"false", n:"null"}[ch]
+				 */
+				val := (ch == 't') ? 'true' : (ch == 'f') ? 'false' : 'null'
+				;// case-sensitve comparison
+				if !((tfn:=SubStr(src, pos, len:=StrLen(val))) == val)
+					throw Exception("Expected '%val%' instead of '%tfn%'")
+				pos += len-1
+				/*
 				;// advance to next char, first char has already been validated
 				while (c:=SubStr(val, A_Index+1, 1)) {
 					ch := SubStr(src, ++pos, 1)
 					if !(ch == c) ;// case-sensitive comparison
 						throw Exception("Expected '%c%' instead of %ch%")
 				}
-
+				*/
 				cont := stack[1]
 				, cont[key == dummy ? (ObjMaxIndex(cont) || 0)+1 : key] := Abs(%val%)
 				, assert := cont is _object ? '},' : '],'
