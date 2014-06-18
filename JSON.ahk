@@ -7,15 +7,7 @@
  */
 class JSON
 {
-	static _object := {} ;// object(s)/'{}' are derived from this -> no special behavior
-	static _array := [] ;// array(s)/'[]' are derived from this -> no special behavior
-	/* If 'OutputNormal' class property is set to true, object(s)/array(s) and
-	 * their descendants are returned as normal AHK object(s). Otherwise,
-	 * they're wrapped as instance(s) of JSON.object and JSON.array.
-	 */
-	static OutputNormal := true
-
-	parse(src) {
+	parse(src, jsonize:=false) {
 		;// Pre-validate JSON source before parsing
 		if ((src:=Trim(src, " `t`n`r")) == "") ;// trim whitespace(s)
 			throw Exception("Empty JSON source.")
@@ -55,7 +47,7 @@ class JSON
 			}
 			if !j
 				throw Exception("Missing close quote(s).", -1)
-			src := SubStr(src, 1, i-1) . SubStr(src, j)
+			src := SubStr(src, 1, i) . SubStr(src, j+1)
 			z := 0
 			while (z:=InStr(str, "\",, z+1)) {
 				ch := SubStr(str, z+1, 1)
@@ -93,12 +85,11 @@ class JSON
 				. (c1 > c2 ? "clos" : "open") . "ing bracket(s)", -1)
 		}
 		/* Determine whether to subclass objects/arrays as JSON.object and
-		 * JSON.array. The user can set this setting via the JSON.OutputNormal
-		 * class property.
+		 * JSON.array. User(s) can set this setting via the 'jsonize' parameter.
 		 */
-		if this.OutputNormal
-			_object := this._object, _array := this._array
-		else (_object := this.object, _array := this.array)
+		if jsonize
+			_object := this.object, _array := this.array
+		else (_object := Object(), _array := Array())
 		pos := 0
 		, key := dummy := []
 		, stack := [result := []]
@@ -133,18 +124,21 @@ class JSON
 					key := dummy
 			
 			} else if InStr("}]", ch) { ;// object|array - closing
-				stack.Remove(1), cont := stack[1]
-				assert := (cont.base == _object) ? "}," : "],"
+				cont := stack.Remove(1)
+				if !jsonize
+					cont.base := ""
+				cont := stack[1]
+				, assert := (cont.base == _object) ? "}," : "],"
 			
 			} else if (ch == """") { ;// string
 				str := strings.Remove(1), cont := stack[1]
 				if (key == dummy) {
-					if (cont.base == _array || cont == result) {
-						key := Round(ObjMaxIndex(cont))+1
-					} else {
+					if (cont.base == _object) {
 						key := str, assert := ":"
 						continue
 					}
+					;// _array or result | using 'else' seems faster, sometimes
+					else key := Round(ObjMaxIndex(cont))+1
 				}
 				cont[key] := str
 				, assert := (cont.base == _object ? "}," : "],")
@@ -161,14 +155,22 @@ class JSON
 					key := dummy
 			
 			} else if InStr("tfn", ch, true) { ;// true|false|null
-				val := {t:"true", f:"false", n:"null"}[ch]
+				/* ternary seems faster than using object ->
+				 * val := {t:"true", f:"false", n:"null"}[ch]
+				 */
+				val := (ch == "t") ? "true" : (ch == "f") ? "false" : "null"
+				;// case-sensitive comparison
+				if !((tfn:=SubStr(src, pos, len:=StrLen(val))) == val)
+					throw Exception("Expected '" val "' instead of '" tfn "'")
+				pos += len-1
+				/*
 				;// advance to next char, first char has already been validated
 				while (c:=SubStr(val, A_Index+1, 1)) {
 					ch := SubStr(src, ++pos, 1)
 					if !(ch == c) ;// case-sensitive comparison
 						throw Exception("Expected '" c "' instead of " ch)
 				}
-
+				*/
 				cont := stack[1]
 				, cont[key == dummy ? Round(ObjMaxIndex(cont))+1 : key] := %val%
 				, assert := (cont.base == _object ? "}," : "],")
@@ -194,44 +196,49 @@ class JSON
 	 * output as string, wrap it in quotes: 'JSON.stringify(["0xffff"])'
 	 * 0, 1 and ""(blank) are output as false, true and null respectively.
  	 */
-	stringify(obj:="", i:="", lvl:=1) {
+	stringify(obj:="", indent:="", lvl:=1) {
 		if IsObject(obj) {
-			if (ComObjValue(x) != "") ; COM Object
-				throw Exception("COM Object(s) are not supported.")
-			if (obj.base == JSON.object || obj.base == JSON.array)
-				arr := (obj.base == JSON.array ? true : false)
-			else for k in obj
+			if (ComObjValue(x) != "") ;// COM Object
+			|| IsFunc(obj)            ;// Func object
+				throw Exception("Unsupported object type")
+			for k in obj
 				arr := (k == A_Index)
 			until !arr
 
-			n := i ? "`n" : (i:="", t:="")
-			Loop, % i ? lvl : 0
-				t .= i
+			n := indent ? "`n" : (i := indent := "")
+			Loop, % indent ? lvl : 0
+				i .= indent
 
-			lvl += 1
+			lvl += 1, str := "" ;// make #Warn happy
 			for k, v in obj {
 				if IsObject(k) || (k == "")
 					throw Exception("Invalid key.", -1)
 				if !arr
-					; integer key(s) are automatically wrapped in quotes
+					;// integer key(s) are automatically wrapped in quotes
 					key := k+0 == k ? """" . k . """" : JSON.stringify(k)
-				val := JSON.stringify(v, i, lvl)
+				val := JSON.stringify(v, indent, lvl)
 				;// format output
-				str .= (arr
-				? ""
-				: key . ":"
-				. ((IsObject(v) && InStr(val, "{") == 1) ;// if value is {}
-				? (n . t) ;// put opening '{' to next line, else OTB if '['
-				: (i ? " " : ""))) ;// put space after ':' if indented
-				. (val . "," . (n ? n : "") . t) ;// value+comma+[newline+indent]
+				str .= (arr ? "" : key . ":" . (indent
+				? (IsObject(v) && InStr(val, "{") == 1 && val != "{}")
+				  ? n . i
+				  : " "
+				: "")) . val . "," . (indent ? n . i : "")
 			}
-			str := n . t . Trim(str, ",`n`t ") . n . SubStr(t, StrLen(i)+1)
+			;// trim and pad
+			if (str != "") {
+				str := Trim(str, ",`n`t ")
+				if indent
+					str := n . i . str . n . SubStr(i, StrLen(indent)+1)
+			}
 			return arr ? "[" str "]" : "{" str "}"
 		}
-		; true|false|null
-		else if InStr(01, obj) || (obj == "")
-			return {"": "null", 0:"false", 1:"true"}[obj]
-		; String
+		;// null
+		else if (obj == "")
+			return "null"
+		;// true|false
+		else if (obj == "0" || obj == "1") ;// compare as string to bypass float
+			return obj ? "true" : "false"
+		;// string
 		else if [obj].GetCapacity(1) {
 			if obj is float
 				return obj
@@ -260,7 +267,7 @@ class JSON
 			}
 			return """" . obj . """"
 		}
-		;// Number
+		;// number
 		if obj is xdigit
 			if obj is not digit
 				obj := """" . obj . """"
