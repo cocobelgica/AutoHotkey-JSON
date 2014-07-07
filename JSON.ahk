@@ -91,8 +91,7 @@ class JSON
 				(LTrim
 				Unexpected '%ch%' -> there is no container object/array.
 				)")
-				assert := '"'
-				if (ch == ':' || !(cont is _object)), assert .= '{[tfn0123456789-'
+				assert := (cont is _object && ch == ',') ? '"' : '{["tfn0123456789-'
 			
 			} else if InStr("{[", ch) { ;// object|array - opening
 				cont := stack[1]
@@ -125,7 +124,7 @@ class JSON
 			} else if (ch >= 0 && ch <= 9) || (ch == "-") { ;// number
 				if !RegExMatch(src, "-?\d+(\.\d+)?((?i)E[-+]?\d+)?", num, pos)
 					throw Exception("Bad number", -1)
-				pos += StrLen(num.Value)-1
+				pos += num.Len()-1
 				, cont := stack[1]
 				, cont[key == dummy ? (ObjMaxIndex(cont) || 0)+1 : key] := num.Value+0
 				, assert := cont is _object ? '},' : '],'
@@ -140,16 +139,8 @@ class JSON
 				if !((tfn:=SubStr(src, pos, len:=StrLen(val))) == val)
 					throw Exception("Expected '%val%' instead of '%tfn%'")
 				pos += len-1
-				/*
-				;// advance to next char, first char has already been validated
-				while (c:=SubStr(val, A_Index+1, 1)) {
-					ch := SubStr(src, ++pos, 1)
-					if !(ch == c) ;// case-sensitive comparison
-						throw Exception("Expected '%c%' instead of %ch%")
-				}
-				*/
-				cont := stack[1]
-				, cont[key == dummy ? (ObjMaxIndex(cont) || 0)+1 : key] := Abs(%val%)
+				, cont := stack[1]
+				, cont[key == dummy ? (ObjMaxIndex(cont) || 0)+1 : key] := %val%+0
 				, assert := cont is _object ? '},' : '],'
 				if (key != dummy), key := dummy
 			}
