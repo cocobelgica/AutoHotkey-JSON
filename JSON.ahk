@@ -258,10 +258,11 @@ class JSON
 			for k, v in esc_char
 				StringReplace, obj, obj, % k, % v, A
 
+			static _t:={0:"0",1:"1",2:"2",3:"3",4:"4",5:"5",6:"6",7:"7",8:"8",9:"9",10:"A",11:"B",12:"C",13:"D",14:"E",15:"F"}
 			while RegExMatch(obj, "[^\x20-\x7e]", ch) {
 				ustr := Asc(ch), esc_ch := "\u", n := 12
 				while (n >= 0)
-					esc_ch .= Chr((x:=(ustr>>n) & 15) + (x<10 ? 48 : 55))
+					esc_ch.=_t[(ustr>>n) & 15]
 					, n -= 4
 				StringReplace, obj, obj, % ch, % esc_ch, A
 			}
