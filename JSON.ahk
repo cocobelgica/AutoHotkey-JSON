@@ -258,13 +258,12 @@ class JSON
 			for k, v in esc_char
 				StringReplace, obj, obj, % k, % v, A
 
-			while RegExMatch(obj, "[^\x20-\x7e]", ch) {
-				ustr := Asc(ch), esc_ch := "\u", n := 12
-				while (n >= 0)
-					esc_ch .= Chr((x:=(ustr>>n) & 15) + (x<10 ? 48 : 55))
-					, n -= 4
-				StringReplace, obj, obj, % ch, % esc_ch, A
-			}
+			_FormatInteger:=A_FormatInteger
+			;I don't know, how to get NumberType of SetFormat for restore later?
+			SetFormat, IntegerFast, hex
+			while RegExMatch(obj, "[^\x20-\x7e]", ch) 
+				StringReplace, obj, obj, % ch, % "\u" SubStr(Asc(ch),3), A
+			SetFormat, IntegerFast,% _FormatInteger
 			return """" . obj . """"
 		}
 		;// number
