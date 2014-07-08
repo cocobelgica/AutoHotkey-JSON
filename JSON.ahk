@@ -264,7 +264,6 @@ class JSON
 				while (n >= 0)
 					esc_ch.=_t[(ustr>>n) & 15]
 					, n -= 4
-				
 				StringReplace, obj, obj, % ch, % esc_ch, A
 			}
 			return """" . obj . """"
