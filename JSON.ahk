@@ -7,6 +7,15 @@
  */
 class JSON
 {
+	/* Function:    parse
+	 * Deserialize a string containing a JSON document to an AHK object.
+	 * Syntax:
+	 *     json_obj := JSON.parse( src [, jsonize:=false ] )
+	 * Parameter(s):
+	 *     src      [in] - String containing a JSON document
+	 *     jsonize  [in] - If true, objects {} and arrays [] are wrapped as
+	 *                     JSON.object and JSON.array instances respectively.
+	 */
 	parse(src, jsonize:=false) {
 		;// Pre-validate JSON source before parsing
 		if ((src:=Trim(src, " `t`n`r")) == "") ;// trim whitespace(s)
@@ -118,7 +127,7 @@ class JSON
 			} else if InStr("{[", ch) { ; object|array - opening
 				cont := stack[1]
 				, sub := ch == "{" ? new _object : new _array
-				, stack.Insert(1, cont[key == dummy ? Round(ObjMaxIndex(cont))+1 : key] := sub)
+				, stack.Insert(1, cont[key == dummy ? NumGet(&cont+4*A_PtrSize)+1 : key] := sub)
 				, assert := (ch == "{" ? """}" : "]{[""tfn0123456789-")
 				if (key != dummy)
 					key := dummy
@@ -138,7 +147,7 @@ class JSON
 						continue
 					}
 					;// _array or result | using 'else' seems faster, sometimes
-					else key := Round(ObjMaxIndex(cont))+1
+					else key := NumGet(&cont+4*A_PtrSize)+1
 				}
 				cont[key] := str
 				, assert := (cont.base == _object ? "}," : "],")
@@ -149,7 +158,7 @@ class JSON
 					throw Exception("Bad number", -1)
 				pos += StrLen(num)-1
 				, cont := stack[1]
-				, cont[key == dummy ? Round(ObjMaxIndex(cont))+1 : key] := num+0
+				, cont[key == dummy ? NumGet(&cont+4*A_PtrSize)+1 : key] := num+0
 				, assert := (cont.base == _object ? "}," : "],")
 				if (key != dummy)
 					key := dummy
@@ -163,16 +172,8 @@ class JSON
 				if !((tfn:=SubStr(src, pos, len:=StrLen(val))) == val)
 					throw Exception("Expected '" val "' instead of '" tfn "'")
 				pos += len-1
-				/*
-				;// advance to next char, first char has already been validated
-				while (c:=SubStr(val, A_Index+1, 1)) {
-					ch := SubStr(src, ++pos, 1)
-					if !(ch == c) ;// case-sensitive comparison
-						throw Exception("Expected '" c "' instead of " ch)
-				}
-				*/
-				cont := stack[1]
-				, cont[key == dummy ? Round(ObjMaxIndex(cont))+1 : key] := %val%
+				, cont := stack[1]
+				, cont[key == dummy ? NumGet(&cont+4*A_PtrSize)+1 : key] := %val%+0
 				, assert := (cont.base == _object ? "}," : "],")
 				if (key != dummy)
 					key := dummy
@@ -181,20 +182,21 @@ class JSON
 		}
 		return result[1]
 	}
-	/* Returns a string representation of an AHK object.
-	 * The 'i' (indent) parameter allows 'pretty printing'. Specify any char(s)
-	 * to use as indentation.
-	 * Usage: JSON.stringify(object, "`t") ; use tab as indentation
-	 *        JSON.stringify(object, "    ") ; 4-spaces indentation
-	 *        JSON.stringify(object) ; no indentation
+	/* Function:    stringify
+	 * Serialize an object to a JSON formatted string.
+	 * Syntax:
+	 *     json_str := JSON.stringify( obj [, indent:="" ] )
+	 * Parameter(s):
+	 *     obj      [in] - The object to stringify.
+	 *     indent   [in] - Specify string(s) to use as indentation per level.
 	 * Remarks:
-	 * JSON.object and JSON.array instance(s) may call this method, automatically
-	 * passing itself as the first parameter. If indententation is specified,
-	 * nested arrays [] are in OTB-style.
-	 * As per JSON spec, hex numbers are treated as strings - doing something
-	 * like: 'JSON.stringify([0xffff])' will output '0xffff' as decimal. To
-	 * output as string, wrap it in quotes: 'JSON.stringify(["0xffff"])'
-	 * 0, 1 and ""(blank) are output as false, true and null respectively.
+	 *     JSON.object and JSON.array instance(s) may call this method,
+	 *     automatically passing itself as the first parameter.
+	 *     If indententation is specified, nested arrays [] are in OTB-style.
+	 *     As per JSON spec, hex numbers are treated as strings. Doing something
+	 *     like: JSON.stringify([0xffff]) will output '0xffff' as decimal.
+	 *     To output as string, wrap it in quotes: JSON.stringify(["0xffff"]).
+	 *     0, 1 and ""(blank) are output as false, true and null respectively.
  	 */
 	stringify(obj:="", indent:="", lvl:=1) {
 		if IsObject(obj) {
@@ -232,47 +234,38 @@ class JSON
 			}
 			return arr ? "[" str "]" : "{" str "}"
 		}
-		;// null
-		else if (obj == "")
-			return "null"
-		;// true|false
-		else if (obj == "0" || obj == "1") ;// compare as string to bypass float
-			return obj ? "true" : "false"
-		;// string
-		else if [obj].GetCapacity(1) {
-			if obj is float
-				return obj
-
-			esc_char := {
-			(Join
-			    """": "\""",
-			    "/": "\/",
-			    "`b": "\b",
-			    "`f": "\f",
-			    "`n": "\n",
-			    "`r": "\r",
-			    "`t": "\t"
-			)}
-			
-			StringReplace, obj, obj, \, \\, A
-			for k, v in esc_char
-				StringReplace, obj, obj, % k, % v, A
-
-			while RegExMatch(obj, "[^\x20-\x7e]", ch) {
-				ustr := Asc(ch), esc_ch := "\u", n := 12
-				while (n >= 0)
-					esc_ch .= Chr((x:=(ustr>>n) & 15) + (x<10 ? 48 : 55))
-					, n -= 4
-				StringReplace, obj, obj, % ch, % esc_ch, A
-			}
-			return """" . obj . """"
+		;// Not a string - assume number
+		if ![obj].GetCapacity(1) { ;// returns 0 for blank strings ("")
+			return (obj == "0" || obj == "1") ;// compare as string to bypass float
+			? (obj ? "true" : "false")   ;// true/false
+			: (obj == "" ? "null" : obj) ;// null OR number
 		}
-		;// number
-		if obj is xdigit
-			if obj is not digit
-				obj := """" . obj . """"
+		;// String
+		if obj is float
+			return obj
+		esc_char := {
+		(Join
+		    """": "\""",
+		    "/":  "\/",
+		    "`b": "\b",
+		    "`f": "\f",
+		    "`n": "\n",
+		    "`r": "\r",
+		    "`t": "\t"
+		)}
 		
-		return obj
+		StringReplace, obj, obj, \, \\, A
+		for k, v in esc_char
+			StringReplace, obj, obj, % k, % v, A
+
+		while RegExMatch(obj, "[^\x20-\x7e]", ch) {
+			ustr := Asc(ch), esc_ch := "\u", n := 12
+			while (n >= 0)
+				esc_ch .= Chr((x:=(ustr>>n) & 15) + (x<10 ? 48 : 55))
+				, n -= 4
+			StringReplace, obj, obj, % ch, % esc_ch, A
+		}
+		return """" . obj . """"
 	}
 	/* Base object for objects {} created during parsing. The user may also manually
 	 * create an insatnce of this class. The sole purpose of wrapping objects {} as
@@ -341,7 +334,7 @@ class JSON
 		}
 
 		len() {
-			return Round(this._.MaxIndex())
+			return NumGet(&(this._)+4*A_PtrSize) ;// Round(this._.MaxIndex())
 		}
 
 		stringify(i:="") {
