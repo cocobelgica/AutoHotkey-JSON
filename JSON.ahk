@@ -234,12 +234,15 @@ class JSON
 			}
 			return arr ? "[" str "]" : "{" str "}"
 		}
-		;// Not a string - assume number
-		if ![obj].GetCapacity(1) { ;// returns 0 for blank strings ("")
+		;// Not a string - assume number -> integer or float
+		if ([obj].GetCapacity(1) == "") {     ;// returns an integer if 'obj' is string
 			return (obj == "0" || obj == "1") ;// compare as string to bypass float
-			? (obj ? "true" : "false")   ;// true/false
-			: (obj == "" ? "null" : obj) ;// null OR number
+			? (obj ? "true" : "false")        ;// true/false
+			: obj                             ;// number
 		}
+		;// null
+		else if (obj == "")
+			return "null"
 		;// String
 		if obj is float
 			return obj
