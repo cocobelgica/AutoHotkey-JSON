@@ -172,12 +172,12 @@ _Json2(obj, indent:="", lvl:=1) {
 	static esc_seq := { ;// JSON escape sequences
 	(Join Q C
 		(q): "\" q,
-	    "/":  "\/",
-	    "`b": "\b",
-	    "`f": "\f",
-	    "`n": "\n",
-	    "`r": "\r",
-	    "`t": "\t"
+		"/":  "\/",
+		"`b": "\b",
+		"`f": "\f",
+		"`n": "\n",
+		"`r": "\r",
+		"`t": "\t"
 	)}
 	i := -1
 	while (i := InStr(obj, "\",, i+2)) ;// Replacement is 2 chars long
