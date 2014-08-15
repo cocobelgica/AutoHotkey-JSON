@@ -3,7 +3,7 @@ class JSON
 	parse(src, jsonize:=false) {
 		;// Pre-validate JSON source before parsing
 		if ((src:=Trim(src, " `t`n`r")) == "") ;// trim whitespace(s)
-			throw Exception('Empty JSON source.')
+			throw "Empty JSON source"
 		first := SubStr(src, 1, 1), last := SubStr(src, -1)
 		if !InStr('{["tfn0123456789-', first) ;// valid beginning chars
 		|| !InStr('}]el0123456789"', last) ;// valid ending chars
@@ -13,9 +13,9 @@ class JSON
 		|| (first == 'n' && last != 'l') ;// assume 'null'
 		|| (InStr('tf', first) && last != 'e') ;// assume 'true' OR 'false'
 		|| (InStr('-0123456789', first) && !(last is 'number')) ;// number
-			throw Exception('Invalid JSON format.', -1)
+			throw "Invalid JSON format"
 		
-		esc_char := {
+		esc_seq := {
 		(Q
 			'"': '"',
 			'/': '/',
@@ -35,157 +35,145 @@ class JSON
 				if (SubStr(str, -1) != "\")
 					break
 			}
-			if !j, throw Exception("Missing close quote(s).", -1)
+			if !j, throw "Missing close quote(s)"
 			src := SubStr(src, 1, i) . SubStr(src, j+1)
-			z := 0
-			while (z:=InStr(str, "\",, z+1)) {
-				ch := SubStr(str, z+1, 1)
+			k := 0
+			while (k := InStr(str, "\",, k+1)) {
+				ch := SubStr(str, k+1, 1)
 				if InStr('"btnfr/', ch)
-					str := SubStr(str, 1, z-1) . esc_char[ch] . SubStr(str, z+2)
+					str := SubStr(str, 1, k-1) . esc_seq[ch] . SubStr(str, k+2)
+				
 				else if (ch = "u") {
-					hex := "0x" . SubStr(str, z+2, 4)
+					hex := "0x" . SubStr(str, k+2, 4)
 					if !(A_IsUnicode || (Abs(hex) < 0x100))
 						continue
-					str := SubStr(str, 1, z-1) . Chr(hex) . SubStr(str, z+6)
-				} else throw Exception("Bad string")
+					str := SubStr(str, 1, k-1) . Chr(hex) . SubStr(str, k+6)
+				
+				} else throw "Invalid escape sequence: '\%ch%'"
 			}
-			strings.Insert(str)
+			ObjPush(strings, str)
 		}
 		;// Check for missing opening/closing brace(s)
 		if InStr(src, '{') || InStr(src, '}') {
 			StrReplace(src, '{', '{', c1), StrReplace(src, '}', '}', c2)
-			if (c1 != c2), throw Exception("
+			if (c1 != c2), throw "
 			(LTrim Q
 			Missing %Abs(c1-c2)% %(c1 > c2 ? 'clos' : 'open')%ing brace(s)
-			)", -1)
+			)"
 		}
 		;// Check for missing opening/closing bracket(s)
 		if InStr(src, '[') || InStr(src, ']') {
 			StrReplace(src, '[', '[', c1), StrReplace(src, ']', ']', c2)
-			if (c1 != c2), throw Exception("
+			if (c1 != c2), throw "
 			(LTrim Q
 			Missing %Abs(c1-c2)% %(c1 > c2 ? 'clos' : 'open')%ing bracket(s)
-			)", -1)
+			)"
 		}
-		if jsonize, (_object := this.object, _array := this.array)
-		else (_object := Object(), _array := Array())
-		pos := 0
-		, key := dummy := []
-		, stack := [result := []]
-		, assert := "" ;// assert := '{["tfn0123456789-'
-		, null := ""
-		;// Begin recursive descent
+		t := "true", f := "false", n := "null", null := ""
+		jbase := jsonize ? {"{":JSON.object, "[":JSON.array} : {"{":0, "[":0}
+		, pos := 0
+		, key := "", is_key := false
+		, stack := [tree := []]
+		, is_arr := Object(tree, 1)
+		, next := first ;// '"{[01234567890-tfn'
 		while ((ch := SubStr(src, ++pos, 1)) != "") {
-			;// skip whitespace
-			while (ch != "" && InStr(" `t`n`r", ch))
-				ch := SubStr(src, ++pos, 1)
-			;// check if current char is expected or not
-			if (assert != "") {
-				if !InStr(assert, ch), throw Exception("Unexpected '%ch%'", -1)
-				assert := ""
+			if InStr(" `t`n`r", ch)
+				continue
+			if !InStr(next, ch)
+				throw "Unexpected char: '%ch%'"
+			
+			is_array := is_arr[obj := stack[1]]
+			
+			if InStr("{[", ch) {
+				val := (proto := jbase[ch]) ? new proto : {}
+				, obj[is_array? ObjLength(obj)+1 : key] := val
+				, ObjInsertAt(stack, 1, val)
+				, is_arr[val] := !(is_key := ch == "{")
+				, next := is_key ? '"}' : '"{[]0123456789-tfn'
 			}
 
-			if InStr(":,", ch) { ;// colon(s) and comma(s)
-				;// no container object
-				if (cont == result), throw Exception("
-				(LTrim
-				Unexpected '%ch%' -> there is no container object/array.
-				)")
-				assert := (cont is _object && ch == ',') ? '"' : '{["tfn0123456789-'
-			
-			} else if InStr("{[", ch) { ;// object|array - opening
-				cont := stack[1]
-				, sub := new (ch == '{' ? _object : _array)
-				, stack.Insert(1, cont[key == dummy ? (ObjMaxIndex(cont) || 0)+1 : key] := sub)
-				, assert := (ch == '{' ? '"}' : ']{["tfn0123456789-')
-				if (key != dummy), key := dummy
-			
-			} else if InStr("}]", ch) { ;// object|array - closing
-				cont := stack.Remove(1)
-				;// remove base if set to output normal AHK object(s)
-				if !jsonize, cont.base := ""
-				cont := stack[1]
-				, assert := cont is _object ? '},' : '],'
-			
-			} else if (ch == '"') { ;// string
-				str := strings.Remove(1), cont := stack[1]
-				if (key == dummy) {
-					if (cont is _object) {
-						key := str, assert := ':'
+			else if InStr("}]", ch) {
+				ObjRemoveAt(stack, 1)
+				, next := is_arr[stack[1]] ? "]," : "},"
+			}
+
+			else if InStr(",:", ch) {
+				if (obj == tree)
+					throw "Unexpected char: '%ch%' -> there is no container object."
+				next := '"{[0123456789-tfn', is_key := (!is_array && ch == ",")
+			}
+
+			else {
+				if (ch == '"') {
+					val := ObjRemoveAt(strings, 1)
+					if is_key {
+						key := val, next := ":"
 						continue
 					}
-					;// _array or result | using 'else' seems faster, sometimes
-					else key := (ObjMaxIndex(cont) || 0)+1
+
+				} else {
+					val := SubStr(src, pos, (SubStr(src, pos) ~= "[\]\},\s]|$")-1)
+					, pos += StrLen(val)-1
+					if InStr("tfn", ch, 1) {
+						if !(val == %ch%)
+							throw "Expected '%(%ch%)%' instead of '%val%'"
+						val := %val%
+					
+					} else if (Abs(val) == "") {
+						throw "Invalid number: %val%"
+					}
+					val += 0
 				}
-				cont[key] := str
-				, assert := cont is _object ? '},' : '],'
-				, key := dummy
-			
-			} else if (ch >= 0 && ch <= 9) || (ch == "-") { ;// number
-				if !RegExMatch(src, "-?\d+(\.\d+)?((?i)E[-+]?\d+)?", num, pos)
-					throw Exception("Bad number", -1)
-				pos += num.Len()-1
-				, cont := stack[1]
-				, cont[key == dummy ? (ObjMaxIndex(cont) || 0)+1 : key] := num.Value+0
-				, assert := cont is _object ? '},' : '],'
-				if (key != dummy), key := dummy
-			
-			} else if InStr("tfn", ch, true) { ;// true|false|null
-				/* Ternary seems faster compared to object ->
-				 * val := {t:"true", f:"false", n:"null"}[ch]
-				 */
-				val := (ch == 't') ? 'true' : (ch == 'f') ? 'false' : 'null'
-				;// case-sensitve comparison
-				if !((tfn:=SubStr(src, pos, len:=StrLen(val))) == val)
-					throw Exception("Expected '%val%' instead of '%tfn%'")
-				pos += len-1
-				, cont := stack[1]
-				, cont[key == dummy ? (ObjMaxIndex(cont) || 0)+1 : key] := %val%+0
-				, assert := cont is _object ? '},' : '],'
-				if (key != dummy), key := dummy
+				obj[is_array? ObjLength(obj)+1 : key] := val
+				, next := is_array ? "]," : "},"
 			}
 		}
-		return result[1]
+		return tree[1]
 	}
 
 	stringify(obj:="", indent:="", lvl:=1) {
 		type := Type(obj)
 		if (type == "Object") {
+			is_array := 0
 			for k in obj
-				if !(arr := (k == A_Index)), break
-			
-			n := indent ? "`n" : (i := indent := "")
+				if !(is_array := (k == A_Index)), break
+
+			if (Abs(indent) != "") {
+				if (indent < 0)
+					throw "Indent parameter must be a postive integer"
+				spaces := indent, indent := ""
+				Loop % spaces
+					indent .= " "
+			}
+			indt := ""
 			Loop, % indent ? lvl : 0
-				i .= indent
+				indt .= indent
 			
-			lvl += 1, str := "" ;// make #Warn happy
+			lvl += 1, out := "" ;// make #Warn happy
 			for k, v in obj {
-				if IsObject(k) || (k == ""), throw Exception("Invalid key.", -1)
-				if !arr, key := k is 'number' ? '"%k%"' : JSON.stringify(k)
-				val := JSON.stringify(v, indent, lvl)
-				;// format output
-				str .= (arr ? "" : "
-				(LTrim Join Q C
-				%key%:%(indent
-				? (IsObject(v) && InStr(val, '{') == 1 && val != '{}')
-				  ? n . i
-				  : ' '
-				: '')%
-				)") . "%val%,%(indent ? n . i : '')%"
+				if IsObject(k) || (k == ""), throw "Invalid JSON key"
+				if !is_array
+					out .= ( Type(k) == "String" ? JSON.stringify(k) : '"%k%"' ) ;// key
+					    .  ( indent ? ": " : ":" ) ;// token
+				out .= JSON.stringify(v, indent, lvl) ;// value
+				    .  ( indent ? ",`n%indt%" : "," ) ;// token + indent
 			}
-			;// trim and pad
-			if (str != "") {
-				str := Trim(str, ",`n`t ")
-				if indent, str := n . i . str . n . SubStr(i, StrLen(indent)+1)
+
+			if (out != "") {
+				out := Trim(out, ",`n%indent%")
+				if (indent != "")
+					out := "`n%indt%%out%`n" . SubStr(indt, StrLen(indent)+1)
 			}
-			return arr ? "[%str%]" : "{%str%}"
-		
-		} else if (type == "Integer" || type == "Float") {
-			return InStr('01', obj) ? (obj ? 'true' : 'false') : obj
-		
-		} else if (type == "String") {
-			if (obj == ""), return 'null'
-			esc_char := {
+			
+			return is_array ? "[%out%]" : "{%out%}"
+		}
+
+		else if (type == "Integer" || type == "Float")
+			return InStr("01", obj) ? (obj ? "true" : "false") : obj
+
+		else if (type == "String") {
+			if (obj == ""), return null := "null" ;// compensate for v2.0-a049 bug
+			esc_seq := {
 			(Q
 				'"': '\"',
 				'/': '\/',
@@ -196,103 +184,91 @@ class JSON
 				'`t': '\t'
 			)}
 			obj := StrReplace(obj, "\", "\\")
-			for k, v in esc_char
+			for k, v in esc_seq
 				obj := StrReplace(obj, k, v)
-			while RegExMatch(obj, "[^\x20-\x7e]", ch) {
-				ustr := Ord(ch.Value), esc_ch := "\u", n := 12
-				while (n >= 0)
-					esc_ch .= Chr((x:=(ustr>>n) & 15) + (x<10 ? 48 : 55)), n -= 4
-				obj := StrReplace(obj, ch.Value, esc_ch)
+			while RegExMatch(obj, "[^\x20-\x7e]", wstr) {
+				ucp := Ord(wstr.Value), hex := "\u", n := 16
+				while ((n -= 4) >= 0)
+					hex .= Chr( (x := (ucp >> n) & 15) + (x < 10 ? 48 : 55) )
+				obj := StrReplace(obj, wstr.Value, hex)
 			}
 			return '"%obj%"'
 		}
-		throw Exception("Unsupported type: '%type%'")
+		throw "Unsupported type: '%type%'"
 	}
 
 	class object
 	{
-		__New(p*) {
-			ObjInsert(this, "_", [])
-			if Mod(p.MaxIndex(), 2), p.Insert("")
-			Loop p.MaxIndex()//2
-				this[p[A_Index*2-1]] := p[A_Index*2]
+		__New(args*) {
+			ObjRawSet(this, "_", [])
+			if ((len := ObjLength(args)) & 1)
+				throw "Invalid number of parameters"
+			Loop len//2
+				this[args[A_Index*2-1]] := args[A_Index*2]
 		}
 
-		__Set(k, v, p*) {
-			this._.Insert(k)
+		__Set(key, val, args*) {
+			ObjPush(this._, key)
 		}
 
-		_NewEnum() {
-			return new JSON.object.Enum(this)
-		}
-
-		Insert(k, v) {
-			return this[k] := v
-		}
-
-		Remove(k*) {
-			ascs := A_StringCaseSense
-			A_StringCaseSense := 'Off'
-			if (k.MaxIndex() > 1) {
-				k1 := k[1], k2 := k[2], is_int := false
-				if k1 is 'integer' && k2 is 'integer'
-					k1 := Round(k1), k2 := Round(k2), is_int := true
-				while true {
-					for each, key in this._
-						i := each
-					until found:=(key >= k1 && key <= k2)
-					if !found, break
-					key := this._.Remove(i)
-					ObjRemove(this, (is_int ? [key, ''] : [key])*)
-					res := A_Index
-				}
-			
-			} else for each, key in this._ {
-				if (key = (k.MaxIndex() ? k[1] : ObjMaxIndex(this))) {
-					key := this._.Remove(each)
-					res := ObjRemove(this, (key is 'integer' ? [key, ''] : [key])*)
-					break
+		Remove(args*) {
+			is_range := ObjLength(args) > 1
+			scs := A_StringCaseSense, A_StringCaseSense := "Off"
+			i := -1
+			for index, key in ObjClone(this._) {
+				if is_range? (key >= args[1] && key <= args[2]) : (key = args[1])
+				{
+					ObjRemoveAt(this._, index-(i+=1))
+					if !is_range, break ;// single key only
 				}
 			}
-			A_StringCaseSense := ascs
-			return res
+			/* Alternative way
+			keys := []
+			for index, key in this._ {
+				if is_range? (key >= args[1] && key <= args[2]) : (key = args[1])
+					continue
+				ObjPush(keys, key)
+			}
+			ObjRawSet(this, "_", keys)
+			*/
+			A_StringCaseSense := scs
+			return ObjRemove(this, args*)
 		}
 
-		GetCapacity(k*) {
-			return ObjGetCapacity((k.MinIndex() ? [this, k[1]] : [this._])*)
-		}
-
-		len() {
-			return (this._.MaxIndex() || 0)
+		Count() {
+			return ObjLength(this._)
 		}
 
 		stringify(i:="") {
 			return JSON.stringify(this, i)
 		}
 
-		class Enum
-		{
-			__New(obj) {
-				this.obj := obj
-				this.enum := obj._._NewEnum()
-			}
-			; Lexikos' ordered array workaround
-			Next(ByRef k, ByRef v:="") {
-				if (r:=this.enum.Next(i, k)), v := this.obj[k]
-				return r
-			}
+		_NewEnum() {
+			static proto := {"Next":JSON.object.Next}
+			return {
+			(Q
+				"base": proto,
+				"enum": this._._NewEnum(),
+				"obj":  this
+			)}
+		}
+
+		Next(ByRef key, ByRef val:="") {
+			if (ret := this.enum.Next(i, key))
+				val := this.obj[key]
+			return ret
 		}
 	}
 
 	class array
 	{
-		__New(p*) {
-			for k, v in p
-				this.Insert(v)
+		__New(args*) {
+			args.base := this.base
+			return args
 		}
 
-		stringify(i:="") {
-			return JSON.stringify(this, i)
+		stringify(indent:="") {
+			return JSON.stringify(this, indent)
 		}
 	}
 }
