@@ -127,12 +127,13 @@ Json2(src, arg1:="", arg2:="") {
 
 _Json2(obj, indent:="", lvl:=1) {
 	static is_v2 := (A_AhkVersion >= "2"), q := Chr(34)
-	static len := Func(is_v2 ? "ObjLength" : "ObjMaxIndex")
 
 	if IsObject(obj) {
-		count := NumGet(&obj+4*A_PtrSize), is_array := 0
-		for k in count == %len%(obj) ? obj : 0
-			is_array := (k == A_Index)
+		if (ObjGetCapacity(obj) == "")
+			throw "Only standard AHK objects are supported"
+		is_array := 0
+		for k in obj
+			is_array := k == A_Index
 		until !is_array
 
 		if (Abs(indent) != "") {
@@ -154,19 +155,22 @@ _Json2(obj, indent:="", lvl:=1) {
 				out .= ( ObjGetCapacity([k], 1) ? _Json2(k) : q . k . q ) ;// key
 				    .  ( indent ? ": " : ":" ) ;// token + padding
 			out .= _Json2(v, indent, lvl) ;// value
-			    .  ( A_Index < count ? (indent ? ",`n" . indt : ",") : "" )
+			    .  ( indent ? ",`n" . indt : "," ) ;// token + indent
 		}
-		if (out != "" && indent != "")
-			out := "`n" . indt . out . "`n" . SubStr(indt, StrLen(indent)+1)
+		if (out != "") {
+			out := Trim(out, ",`n" . indent)
+			if (indent != "")
+				out := "`n" . indt . out . "`n" . SubStr(indt, StrLen(indent)+1)
+		}
 		
 		return is_array ? "[" out "]" : "{" out "}"
 	}
 
 	else if (ObjGetCapacity([obj], 1) == "")
-		return (obj == "0" || obj == "1") ? (obj ? "true" : "false") : obj
+		return InStr("01", obj) ? (obj ? "true" : "false") : obj
 
 	else if (obj == "")
-		return "null"
+		return n := "null" ;// compensate for v2.0-a049 bug/behavior
 
 	static ord := Func(is_v2 ? "Ord" : "Asc")
 	static esc_seq := { ;// JSON escape sequences
