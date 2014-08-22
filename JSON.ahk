@@ -151,7 +151,7 @@ class JSON
  	 */
 	stringify(obj:="", indent:="", lvl:=1) {
 		if IsObject(obj) {
-			if (ComObjValue(obj) != "") || IsFunc(obj) ;// COM/Func object
+			if (ObjGetCapacity(obj) == "") ;// COM,Func,RegExMatch,File object
 				throw "Unsupported object type"
 			is_array := 0
 			for k in obj
@@ -169,7 +169,7 @@ class JSON
 			Loop, % indent ? lvl : 0
 				indt .= indent
 
-			lvl += 1, str := "" ;// make #Warn happy
+			lvl += 1, out := "" ;// make #Warn happy
 			for k, v in obj {
 				if IsObject(k) || (k == "")
 					throw "Invalid JSON key"
@@ -195,8 +195,8 @@ class JSON
 		else if (obj == "")
 			return "null"
 		;// String
-		if obj is float
-			return obj
+		; if obj is float
+		; 	return obj
 		esc_seq := {
 		(Join
 		    """": "\""",
@@ -239,8 +239,8 @@ class JSON
 		Insert(key, val) {
 			return this[key] := val
 		}
-
-		Remove(args*) {
+		/* Buggy - remaining integer keys are not adjusted
+		Remove(args*) { 
 			ret := ObjRemove(this, args*), i := -1
 			for index, key in ObjClone(this._) {
 				if ObjHasKey(this, key)
@@ -249,7 +249,7 @@ class JSON
 			}
 			return ret
 		}
-		
+		*/
 		Count() {
 			return NumGet(&(this._)+4*A_PtrSize) ;// Round(this._.MaxIndex())
 		}
