@@ -1,4 +1,4 @@
-#Include <JSON>
+#Include %A_LineFile%\..\JSON.ahk
 
 json_str =
 (
