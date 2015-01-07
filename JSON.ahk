@@ -200,7 +200,7 @@ class JSON
 					throw Exception("Invalid JSON key")
 				
 				if !is_array
-					out .= ( ObjGetCapacity([k], 1) ? JSON.stringify(k) : q . k . q ) ;// key
+					out .= ( ObjGetCapacity([k], 1) ? JSON.stringify(k) : """" . k . """" ) ;// key
 					    .  ( indent ? ": " : ":" ) ;// token + padding
 				out .= JSON.stringify(v, indent, lvl) ;// value
 				    .  ( indent ? ",`n" . indt : "," ) ;// token + indent
