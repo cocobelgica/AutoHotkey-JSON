@@ -218,11 +218,9 @@ class JSON
 		
 		;// Not a string - assume number -> integer or float
 		if (ObjGetCapacity([obj], 1) == "") ;// returns an integer if 'obj' is string
-			return InStr("01", obj) ? (obj ? "true" : "false") : obj
+			return obj
 		
-		;// null
-		if (obj == "")
-			return "null"
+		;// null - not supported in AHK
 
 		;// String
 		; if obj is float
