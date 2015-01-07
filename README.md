@@ -2,15 +2,17 @@
 
 #### [JSON](http://json.org/) module for [AutoHotkey](http://ahkscript.org/)
 
-_Tested on AutoHotkey **v1.1.15.04** and **v2.0-a049**_
+_Requires AutoHotkey **v1.1.17.00+** OR **2.0-a057+**_
 
 License: [WTFPL](http://wtfpl.net/)
 
 - - -
 
 ## JSON (class)
-There are multiple version(s) available (as branches) in this repo to provide support for different AutoHotkey builds. The _master_ branch is meant to be compatible with both AHK _v1.1_ and _v2.0-a_ (haven't updated yet), while branches _v1.1_ and _v2_ support the specific AutoHotkey version as indicated by their branch name.
+There are multiple version(s) available (as branches) in this repo to provide support for different AutoHotkey builds. The _master_ branch is for `v1.1` _(except for Json2.ahk which is version independent)_ while the _v2_ branch is for `AHK v2.0-a`.
+
 - - -
+
 #### .parse()
 Deserialize _src_ (a JSON formatted string) to an AutoHotkey object
 
