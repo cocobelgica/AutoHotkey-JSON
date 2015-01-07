@@ -9,7 +9,8 @@ class JSON
 	 *     jsonize  [in] - If true, objects {} and arrays [] are wrapped as
 	 *                     JSON.object and JSON.array instances respectively.
 	 */
-	parse(src, jsonize:=false) {
+	parse(src, jsonize:=false)
+	{
 		;// Pre-validate JSON source before parsing
 		if ((src := Trim(src, " `t`n`r")) == "") ;// trim whitespace(s)
 			throw "Empty JSON source"
@@ -22,7 +23,7 @@ class JSON
 		|| (first == "n" && last != "l") ;// assume 'null'
 		|| (InStr("tf", first) && last != "e") ;// assume 'true' OR 'false'
 		|| (InStr("-0123456789", first) && !InStr("0123456789", last)) ;// number
-			throw "Invalid JSON format"
+			throw Exception("Invalid JSON format")
 
 		esc_seq := {
 		(Join
@@ -35,108 +36,127 @@ class JSON
 			"t": "`t"
 		)}
 		i := 0, strings := []
-		while (i := InStr(src, """",, i+1)) {
+		while (i := InStr(src, """",, i+1))
+		{
 			j := i
-			while (j := InStr(src, """",, j+1)) {
+			while (j := InStr(src, """",, j+1))
+			{
 				str := SubStr(src, i+1, j-i-1)
 				StringReplace, str, str, \\, \u005C, A
 				if (SubStr(str, 0) != "\")
 					break
 			}
 			if !j
-				throw "Missing close quote(s)"
+				throw Exception("Missing close quote(s)")
 			src := SubStr(src, 1, i) . SubStr(src, j+1)
 			k := 0
-			while (k := InStr(str, "\",, k+1)) {
+			while (k := InStr(str, "\",, k+1))
+			{
 				ch := SubStr(str, k+1, 1)
 				if InStr("""btnfr/", ch, 1)
 					str := SubStr(str, 1, k-1) . esc_seq[ch] . SubStr(str, k+2)
 				
-				else if (ch == "u") {
+				else if (ch == "u")
+				{
 					hex := "0x" . SubStr(str, k+2, 4)
 					if !(A_IsUnicode || (Abs(hex) < 0x100))
 						continue ;// throw Exception() ???
 					str := SubStr(str, 1, k-1) . Chr(hex) . SubStr(str, k+6)
 				
-				} else throw "Invalid escape sequence: '\" ch "'"
+				}
+				else
+					throw Exception(Format("Invalid escape sequence: '\{}'", ch))
 			}
 			strings.Insert(str)
 		}
+		
 		;// Check for missing opening/closing brace(s)
-		if InStr(src, "{") || InStr(src, "}") {
+		if InStr(src, "{") || InStr(src, "}")
+		{
 			StringReplace, dummy, src, {, {, UseErrorLevel
 			c1 := ErrorLevel
 			StringReplace, dummy, src, }, }, UseErrorLevel
 			c2 := ErrorLevel
 			if (c1 != c2)
-				throw "Missing " . Abs(c1-c2) . (c1 > c2 ? "clos" : "open") . "ing brace(s)"
+				throw Exception(Format("Missing {} {}ing brace(s)", Abs(c1-c2), c1 > c2 ? "clos" : "open"))
 		}
 		;// Check for missing opening/closing bracket(s)
-		if InStr(src, "[") || InStr(src, "]") {
+		if InStr(src, "[") || InStr(src, "]")
+		{
 			StringReplace, dummy, src, [, [, UseErrorLevel
 			c1 := ErrorLevel
 			StringReplace, dummy, src, ], ], UseErrorLevel
 			c2 := ErrorLevel
 			if (c1 != c2)
-				throw "Missing " . Abs(c1-c2) . (c1 > c2 ? "clos" : "open") . "ing bracket(s)"
+				throw Exception(Format("Missing {} {}ing bracket(s)", Abs(c1-c2), c1 > c2 ? "clos" : "open"))
 		}
+		
 		t := "true", f := "false", n := "null", null := ""
-		jbase := jsonize ? {"{":JSON.object, "[":JSON.array} : {"{":0, "[":0}
+		jbase := jsonize ? { "{":JSON.object, "[":JSON.array } : { "{":0, "[":0 }
 		, pos := 0
 		, key := "", is_key := false
 		, stack := [tree := []]
-		, is_arr := Object(tree, 1)
+		, is_arr := {(tree): 1}
 		, next := first ;// """{[01234567890-tfn"
-		while ((ch := SubStr(src, ++pos, 1)) != "") {
+		while ((ch := SubStr(src, ++pos, 1)) != "")
+		{
 			if InStr(" `t`n`r", ch)
 				continue
 			if !InStr(next, ch)
-				throw "Unexpected char: '" ch "'"
+				throw Exception(Format("Unexpected char: '{}'", ch))
 			
 			is_array := is_arr[obj := stack[1]]
 			
-			if InStr("{[", ch) {
+			if InStr("{[", ch)
+			{
 				val := (proto := jbase[ch]) ? new proto : {}
-				, obj[is_array? NumGet(&obj+4*A_PtrSize)+1 : key] := val
+				, obj[is_array? NumGet(&obj + 4*A_PtrSize)+1 : key] := val
 				, ObjInsert(stack, 1, val)
 				, is_arr[val] := !(is_key := ch == "{")
 				, next := is_key ? """}" : """{[]0123456789-tfn"
 			}
 
-			else if InStr("}]", ch) {
+			else if InStr("}]", ch)
+			{
 				ObjRemove(stack, 1)
 				, next := is_arr[stack[1]] ? "]," : "},"
 			}
 
-			else if InStr(",:", ch) {
+			else if InStr(",:", ch)
+			{
 				if (obj == tree)
-					throw "Unexpected char: '" ch "' -> there is no container object."
+					throw Exception(Format("Unexpected char: '{}' -> there is no container object.", ch))
 				next := """{[0123456789-tfn", is_key := (!is_array && ch == ",")
 			}
 
-			else {
-				if (ch == """") {
+			else
+			{
+				if (ch == """")
+				{
 					val := ObjRemove(strings, 1)
-					if is_key {
+					if is_key
+					{
 						key := val, next := ":"
 						continue
 					}
 
-				} else {
+				}
+				else
+				{
 					val := SubStr(src, pos, (SubStr(src, pos) ~= "[\]\},\s]|$")-1)
 					, pos += StrLen(val)-1
-					if InStr("tfn", ch, 1) {
+					if InStr("tfn", ch, 1)
+					{
 						if !(val == %ch%)
-							throw "Expected '" %ch% "' instead of '" val "'"
+							throw Exception(Format("Expected '{}' instead of '{}'", %ch%, val))
 						val := %val%
-					
-					} else if (Abs(val) == "") {
-						throw "Invalid number: " val
 					}
+					else if (Abs(val) == "")
+						throw Exception("Invalid number: " . val)
 					val += 0
 				}
-				obj[is_array? NumGet(&obj+4*A_PtrSize)+1 : key] := val
-				, next := is_array ? "]," : "},"
+				obj[is_array? NumGet(&obj + 4*A_PtrSize)+1 : key] := val
+				next := is_array ? "]," : "},"
 			}
 		}
 		return tree[1]
@@ -149,18 +169,22 @@ class JSON
 	 *     obj      [in] - The object to stringify.
 	 *     indent   [in] - Specify string(s) to use as indentation per level.
  	 */
-	stringify(obj:="", indent:="", lvl:=1) {
-		if IsObject(obj) {
+	stringify(obj:="", indent:="", lvl:=1)
+	{
+		if IsObject(obj)
+		{
 			if (ObjGetCapacity(obj) == "") ;// COM,Func,RegExMatch,File object
-				throw "Unsupported object type"
+				throw Exception("Unsupported object type")
+			
 			is_array := 0
 			for k in obj
 				is_array := (k == A_Index)
 			until !is_array
 
-			if (Abs(indent) != "") {
+			if (Abs(indent) != "")
+			{
 				if (indent < 0)
-					throw "Indent parameter must be a postive integer"
+					throw Exception("Indent parameter must be a postive integer")
 				spaces := indent, indent := ""
 				Loop % spaces
 					indent .= " "
@@ -170,9 +194,11 @@ class JSON
 				indt .= indent
 
 			lvl += 1, out := "" ;// make #Warn happy
-			for k, v in obj {
+			for k, v in obj
+			{
 				if IsObject(k) || (k == "")
-					throw "Invalid JSON key"
+					throw Exception("Invalid JSON key")
+				
 				if !is_array
 					out .= ( ObjGetCapacity([k], 1) ? JSON.stringify(k) : q . k . q ) ;// key
 					    .  ( indent ? ": " : ":" ) ;// token + padding
@@ -180,20 +206,24 @@ class JSON
 				    .  ( indent ? ",`n" . indt : "," ) ;// token + indent
 			}
 			
-			if (out != "") {
+			if (out != "")
+			{
 				out := Trim(out, ",`n" indent)
 				if (indent != "")
-					out := "`n" . indt . out . "`n" . SubStr(indt, StrLen(indent)+1)
+					out := Format("`n{}{}`n{}", indt, out, SubStr(indt, StrLen(indent)+1))
 			}
 			
 			return is_array ? "[" out "]" : "{" out "}"
 		}
+		
 		;// Not a string - assume number -> integer or float
 		if (ObjGetCapacity([obj], 1) == "") ;// returns an integer if 'obj' is string
 			return InStr("01", obj) ? (obj ? "true" : "false") : obj
+		
 		;// null
-		else if (obj == "")
+		if (obj == "")
 			return "null"
+
 		;// String
 		; if obj is float
 		; 	return obj
@@ -212,9 +242,10 @@ class JSON
 		for k, v in esc_seq
 			StringReplace, obj, obj, %k%, %v%, A
 
-		while RegExMatch(obj, "[^\x20-\x7e]", wstr) {
+		while RegExMatch(obj, "[^\x20-\x7e]", wstr)
+		{
 			ucp := Asc(wstr), hex := "\u", n := 16
-			while ((n-=4) >= 0)
+			while ((n -= 4) >= 0)
 				hex .= Chr( (x := (ucp >> n) & 15) + (x < 10 ? 48 : 55) )
 			StringReplace, obj, obj, %wstr%, %hex%, A
 		}
@@ -224,19 +255,22 @@ class JSON
 	class object
 	{
 		
-		__New(args*) {
+		__New(args*)
+		{
 			ObjInsert(this, "_", [])
 			if ((count := NumGet(&args+4*A_PtrSize)) & 1)
 				throw "Invalid number of parameters"
-			Loop, % count//2
+			Loop % count//2
 				this[args[A_Index*2-1]] := args[A_Index*2]
 		}
 
-		__Set(key, val, args*) {
+		__Set(key, val, args*)
+		{
 			ObjInsert(this._, key)
 		}
 
-		Insert(key, val) {
+		Insert(key, val)
+		{
 			return this[key] := val
 		}
 		/* Buggy - remaining integer keys are not adjusted
@@ -250,25 +284,24 @@ class JSON
 			return ret
 		}
 		*/
-		Count() {
-			return NumGet(&(this._)+4*A_PtrSize) ;// Round(this._.MaxIndex())
+		Count()
+		{
+			return NumGet(&(this._) + 4*A_PtrSize) ;// Round(this._.MaxIndex())
 		}
 
-		stringify(indent:="") {
+		stringify(indent:="")
+		{
 			return JSON.stringify(this, indent)
 		}
 
-		_NewEnum() {
-			static proto := {"Next":JSON.object.Next}
-			return {
-			(LTrim Join
-				"base": proto,
-				"enum": this._._NewEnum(),
-				"obj":  this
-			)}
+		_NewEnum()
+		{
+			static proto := { "Next": JSON.object.Next }
+			return { base: proto, enum: this._._NewEnum(), obj: this }
 		}
 
-		Next(ByRef key, ByRef val:="") {
+		Next(ByRef key, ByRef val:="")
+		{
 			if (ret := this.enum.Next(i, key))
 				val := this.obj[key]
 			return ret
@@ -278,12 +311,14 @@ class JSON
 	class array
 	{
 			
-		__New(args*) {
+		__New(args*)
+		{
 			args.base := this.base
 			return args
 		}
 
-		stringify(indent:="") {
+		stringify(indent:="")
+		{
 			return JSON.stringify(this, indent)
 		}
 	}
