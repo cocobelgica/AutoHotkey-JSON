@@ -1,9 +1,10 @@
 class JSON
 {
-	parse(src, jsonize:=false) {
+	parse(src, jsonize:=false)
+	{
 		;// Pre-validate JSON source before parsing
 		if ((src:=Trim(src, " `t`n`r")) == "") ;// trim whitespace(s)
-			throw "Empty JSON source"
+			throw Exception("Empty JSON source")
 		first := SubStr(src, 1, 1), last := SubStr(src, -1)
 		if !InStr('{["tfn0123456789-', first) ;// valid beginning chars
 		|| !InStr('}]el0123456789"', last) ;// valid ending chars
@@ -13,9 +14,9 @@ class JSON
 		|| (first == 'n' && last != 'l') ;// assume 'null'
 		|| (InStr('tf', first) && last != 'e') ;// assume 'true' OR 'false'
 		|| (InStr('-0123456789', first) && !(last is 'number')) ;// number
-			throw "Invalid JSON format"
+			throw Exception("Invalid JSON format")
 		
-		esc_seq := {
+		static esc_seq := {
 		(Q
 			'"': '"',
 			'/': '/',
@@ -27,64 +28,74 @@ class JSON
 		)}
 		;// Extract string literals
 		i := 0, strings := []
-		while (i:=InStr(src, '"',, i+1)) {
+		while (i:=InStr(src, '"',, i+1))
+		{
 			j := i
-			while (j:=InStr(src, '"',, j+1)) {
+			while (j:=InStr(src, '"',, j+1))
+			{
 				str := SubStr(src, i+1, j-i-1)
 				str := StrReplace(str, "\\", "\u005C")
 				if (SubStr(str, -1) != "\")
 					break
 			}
-			if !j, throw "Missing close quote(s)"
+			
+			if !j, throw Exception("Missing close quote(s)")
 			src := SubStr(src, 1, i) . SubStr(src, j+1)
+			
 			k := 0
-			while (k := InStr(str, "\",, k+1)) {
+			while (k := InStr(str, "\",, k+1))
+			{
 				ch := SubStr(str, k+1, 1)
 				if InStr('"btnfr/', ch)
 					str := SubStr(str, 1, k-1) . esc_seq[ch] . SubStr(str, k+2)
 				
-				else if (ch = "u") {
+				else if (ch = "u")
+				{
 					hex := "0x" . SubStr(str, k+2, 4)
 					if !(A_IsUnicode || (Abs(hex) < 0x100))
 						continue
 					str := SubStr(str, 1, k-1) . Chr(hex) . SubStr(str, k+6)
 				
-				} else throw "Invalid escape sequence: '\%ch%'"
+				}
+				else
+					throw Exception("Invalid escape sequence: '\%ch%'")
 			}
 			ObjPush(strings, str)
 		}
+		
 		;// Check for missing opening/closing brace(s)
-		if InStr(src, '{') || InStr(src, '}') {
+		if InStr(src, '{') || InStr(src, '}')
+		{
 			StrReplace(src, '{', '{', c1), StrReplace(src, '}', '}', c2)
-			if (c1 != c2), throw "
-			(LTrim Q
-			Missing %Abs(c1-c2)% %(c1 > c2 ? 'clos' : 'open')%ing brace(s)
-			)"
+			if (c1 != c2)
+				throw Exception("Missing %Abs(c1-c2)% %(c1 > c2 ? 'clos' : 'open')%ing brace(s)")
 		}
 		;// Check for missing opening/closing bracket(s)
-		if InStr(src, '[') || InStr(src, ']') {
+		if InStr(src, '[') || InStr(src, ']')
+		{
 			StrReplace(src, '[', '[', c1), StrReplace(src, ']', ']', c2)
-			if (c1 != c2), throw "
-			(LTrim Q
-			Missing %Abs(c1-c2)% %(c1 > c2 ? 'clos' : 'open')%ing bracket(s)
-			)"
+			if (c1 != c2)
+				throw Exception("Missing %Abs(c1-c2)% %(c1 > c2 ? 'clos' : 'open')%ing bracket(s)")
 		}
-		t := "true", f := "false", n := "null", null := ""
-		jbase := jsonize ? {"{":JSON.object, "[":JSON.array} : {"{":0, "[":0}
+		
+		static t := "true", f := "false", n := "null", null := ""
+		jbase := jsonize ? { "{":JSON.object, "[":JSON.array } : { "{":0, "[":0 }
 		, pos := 0
 		, key := "", is_key := false
 		, stack := [tree := []]
-		, is_arr := Object(tree, 1)
+		, is_arr := {(tree): 1}
 		, next := first ;// '"{[01234567890-tfn'
-		while ((ch := SubStr(src, ++pos, 1)) != "") {
+		while ((ch := SubStr(src, ++pos, 1)) != "")
+		{
 			if InStr(" `t`n`r", ch)
 				continue
 			if !InStr(next, ch)
-				throw "Unexpected char: '%ch%'"
+				throw Exception("Unexpected char: '%ch%'")
 			
 			is_array := is_arr[obj := stack[1]]
 			
-			if InStr("{[", ch) {
+			if InStr("{[", ch)
+			{
 				val := (proto := jbase[ch]) ? new proto : {}
 				, obj[is_array? ObjLength(obj)+1 : key] := val
 				, ObjInsertAt(stack, 1, val)
@@ -92,36 +103,42 @@ class JSON
 				, next := is_key ? '"}' : '"{[]0123456789-tfn'
 			}
 
-			else if InStr("}]", ch) {
+			else if InStr("}]", ch)
+			{
 				ObjRemoveAt(stack, 1)
 				, next := is_arr[stack[1]] ? "]," : "},"
 			}
 
-			else if InStr(",:", ch) {
+			else if InStr(",:", ch)
+			{
 				if (obj == tree)
-					throw "Unexpected char: '%ch%' -> there is no container object."
+					throw Exception("Unexpected char: '%ch%' -> there is no container object.")
 				next := '"{[0123456789-tfn', is_key := (!is_array && ch == ",")
 			}
 
-			else {
-				if (ch == '"') {
+			else
+			{
+				if (ch == '"')
+				{
 					val := ObjRemoveAt(strings, 1)
-					if is_key {
+					if is_key
+					{
 						key := val, next := ":"
 						continue
 					}
-
-				} else {
+				}
+				else
+				{
 					val := SubStr(src, pos, (SubStr(src, pos) ~= "[\]\},\s]|$")-1)
 					, pos += StrLen(val)-1
-					if InStr("tfn", ch, 1) {
+					if InStr("tfn", ch, 1)
+					{
 						if !(val == %ch%)
-							throw "Expected '%(%ch%)%' instead of '%val%'"
+							throw Exception("Expected '%(%ch%)%' instead of '%val%'")
 						val := %val%
-					
-					} else if (Abs(val) == "") {
-						throw "Invalid number: %val%"
 					}
+					else if (Abs(val) == "")
+						throw Exception("Invalid number: %val%")
 					val += 0
 				}
 				obj[is_array? ObjLength(obj)+1 : key] := val
@@ -131,14 +148,17 @@ class JSON
 		return tree[1]
 	}
 
-	stringify(obj:="", indent:="", lvl:=1) {
+	stringify(obj:="", indent:="", lvl:=1)
+	{
 		type := Type(obj)
-		if (type == "Object") {
+		if (type == "Object")
+		{
 			is_array := 0
 			for k in obj
 				if !(is_array := (k == A_Index)), break
 
-			if (Abs(indent) != "") {
+			if (Abs(indent) != "")
+			{
 				if (indent < 0)
 					throw "Indent parameter must be a postive integer"
 				spaces := indent, indent := ""
@@ -150,8 +170,10 @@ class JSON
 				indt .= indent
 			
 			lvl += 1, out := "" ;// make #Warn happy
-			for k, v in obj {
-				if IsObject(k) || (k == ""), throw "Invalid JSON key"
+			for k, v in obj
+			{
+				if IsObject(k) || (k == ""), throw Exception("Invalid JSON key")
+				
 				if !is_array
 					out .= ( Type(k) == "String" ? JSON.stringify(k) : '"%k%"' ) ;// key
 					    .  ( indent ? ": " : ":" ) ;// token
@@ -159,7 +181,8 @@ class JSON
 				    .  ( indent ? ",`n%indt%" : "," ) ;// token + indent
 			}
 
-			if (out != "") {
+			if (out != "")
+			{
 				out := Trim(out, ",`n%indent%")
 				if (indent != "")
 					out := "`n%indt%%out%`n" . SubStr(indt, StrLen(indent)+1)
@@ -171,9 +194,10 @@ class JSON
 		else if (type == "Integer" || type == "Float")
 			return InStr("01", obj) ? (obj ? "true" : "false") : obj
 
-		else if (type == "String") {
+		else if (type == "String")
+		{
 			if (obj == ""), return null := "null" ;// compensate for v2.0-a049 bug
-			esc_seq := {
+			static esc_seq := {
 			(Q
 				'"': '\"',
 				'/': '\/',
@@ -186,7 +210,8 @@ class JSON
 			obj := StrReplace(obj, "\", "\\")
 			for k, v in esc_seq
 				obj := StrReplace(obj, k, v)
-			while RegExMatch(obj, "[^\x20-\x7e]", wstr) {
+			while RegExMatch(obj, "[^\x20-\x7e]", wstr)
+			{
 				ucp := Ord(wstr.Value), hex := "\u", n := 16
 				while ((n -= 4) >= 0)
 					hex .= Chr( (x := (ucp >> n) & 15) + (x < 10 ? 48 : 55) )
@@ -194,24 +219,27 @@ class JSON
 			}
 			return '"%obj%"'
 		}
-		throw "Unsupported type: '%type%'"
+		throw Exception("Unsupported type: '%type%'")
 	}
 
 	class object
 	{
-		__New(args*) {
+		__New(args*)
+		{
 			ObjRawSet(this, "_", [])
 			if ((len := ObjLength(args)) & 1)
-				throw "Invalid number of parameters"
+				throw Exception("Invalid number of parameters")
 			Loop len//2
 				this[args[A_Index*2-1]] := args[A_Index*2]
 		}
 
-		__Set(key, val, args*) {
+		__Set(key, val, args*)
+		{
 			ObjPush(this._, key)
 		}
 
-		Remove(args*) {
+		Remove(args*)
+		{
 			is_range := ObjLength(args) > 1
 			scs := A_StringCaseSense, A_StringCaseSense := "Off"
 			i := -1
@@ -235,25 +263,24 @@ class JSON
 			return ObjRemove(this, args*)
 		}
 
-		Count() {
+		Count()
+		{
 			return ObjLength(this._)
 		}
 
-		stringify(i:="") {
+		stringify(i:="")
+		{
 			return JSON.stringify(this, i)
 		}
 
-		_NewEnum() {
-			static proto := {"Next":JSON.object.Next}
-			return {
-			(Q
-				"base": proto,
-				"enum": this._._NewEnum(),
-				"obj":  this
-			)}
+		_NewEnum()
+		{
+			static proto := { "Next": JSON.object.Next }
+			return { base: proto, enum: this._._NewEnum(), obj: this }
 		}
 
-		Next(ByRef key, ByRef val:="") {
+		Next(ByRef key, ByRef val:="")
+		{
 			if (ret := this.enum.Next(i, key))
 				val := this.obj[key]
 			return ret
@@ -262,12 +289,14 @@ class JSON
 
 	class array
 	{
-		__New(args*) {
+		__New(args*)
+		{
 			args.base := this.base
 			return args
 		}
 
-		stringify(indent:="") {
+		stringify(indent:="")
+		{
 			return JSON.stringify(this, indent)
 		}
 	}
