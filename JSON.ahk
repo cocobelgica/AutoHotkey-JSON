@@ -192,11 +192,10 @@ class JSON
 		}
 
 		else if (type == "Integer" || type == "Float")
-			return InStr("01", obj) ? (obj ? "true" : "false") : obj
+			return obj
 
 		else if (type == "String")
 		{
-			if (obj == ""), return null := "null" ;// compensate for v2.0-a049 bug
 			static esc_seq := {
 			(Q
 				'"': '\"',
@@ -207,15 +206,18 @@ class JSON
 				'`r': '\r',
 				'`t': '\t'
 			)}
-			obj := StrReplace(obj, "\", "\\")
-			for k, v in esc_seq
-				obj := StrReplace(obj, k, v)
-			while RegExMatch(obj, "[^\x20-\x7e]", wstr)
+			if (obj != "")
 			{
-				ucp := Ord(wstr.Value), hex := "\u", n := 16
-				while ((n -= 4) >= 0)
-					hex .= Chr( (x := (ucp >> n) & 15) + (x < 10 ? 48 : 55) )
-				obj := StrReplace(obj, wstr.Value, hex)
+				obj := StrReplace(obj, "\", "\\")
+				for k, v in esc_seq
+					obj := StrReplace(obj, k, v)
+				while RegExMatch(obj, "[^\x20-\x7e]", wstr)
+				{
+					ucp := Ord(wstr.Value), hex := "\u", n := 16
+					while ((n -= 4) >= 0)
+						hex .= Chr( (x := (ucp >> n) & 15) + (x < 10 ? 48 : 55) )
+					obj := StrReplace(obj, wstr.Value, hex)
+				}
 			}
 			return '"%obj%"'
 		}
