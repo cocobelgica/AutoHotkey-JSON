@@ -153,7 +153,7 @@ class JSON
 					}
 					else if (Abs(val) == "")
 						throw Exception("Invalid number: " . val)
-					val += 0
+					val := val + 0
 				}
 				obj[is_array? NumGet(&obj + 4*A_PtrSize)+1 : key] := val
 				next := is_array ? "]," : "},"
