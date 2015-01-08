@@ -25,7 +25,7 @@ class JSON
 		|| (InStr("-0123456789", first) && !InStr("0123456789", last)) ;// number
 			throw Exception("Invalid JSON format")
 
-		esc_seq := {
+		static esc_seq := {
 		(Join
 			"""": """",
 			"/": "/",
@@ -91,7 +91,7 @@ class JSON
 				throw Exception(Format("Missing {} {}ing bracket(s)", Abs(c1-c2), c1 > c2 ? "clos" : "open"))
 		}
 		
-		t := "true", f := "false", n := "null", null := ""
+		static t := "true", f := "false", n := "null", null := ""
 		jbase := jsonize ? { "{":JSON.object, "[":JSON.array } : { "{":0, "[":0 }
 		, pos := 0
 		, key := "", is_key := false
@@ -225,7 +225,7 @@ class JSON
 		;// String
 		; if obj is float
 		; 	return obj
-		esc_seq := {
+		static esc_seq := {
 		(Join
 		    """": "\""",
 		    "/":  "\/",
@@ -236,17 +236,19 @@ class JSON
 		    "`t": "\t"
 		)}
 		
-		StringReplace, obj, obj, \, \\, A
-		for k, v in esc_seq
-			StringReplace, obj, obj, %k%, %v%, A
-
-		while RegExMatch(obj, "[^\x20-\x7e]", wstr)
+		if (obj != "")
 		{
-			ucp := Asc(wstr), hex := "\u", n := 16
-			while ((n -= 4) >= 0)
-				hex .= Chr( (x := (ucp >> n) & 15) + (x < 10 ? 48 : 55) )
-			StringReplace, obj, obj, %wstr%, %hex%, A
+			StringReplace, obj, obj, \, \\, A
+			for k, v in esc_seq
+				StringReplace, obj, obj, %k%, %v%, A
+
+			while RegExMatch(obj, "[^\x20-\x7e]", wstr)
+			{
+				esc_hex := Format("\u{:04X}", Asc(wstr))
+				StringReplace, obj, obj, %wstr%, %esc_hex%, A
+			}
 		}
+		
 		return """" . obj . """"
 	}
 	
