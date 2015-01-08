@@ -115,7 +115,7 @@ Json2(src, arg1:="", arg2:="") {
 				} else if (Abs(val) == "") {
 					throw "Invalid number: " val
 				}
-				val += 0
+				val := val + 0 ;// val += 0 on v1.1+ converts "" to 0
 			}
 			;// is_array? %push%(obj, val) : %set%(obj, key, val)
 			obj[is_array? NumGet(&obj+4*A_PtrSize)+1 : key] := val
