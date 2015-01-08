@@ -166,11 +166,10 @@ _Json2(obj, indent:="", lvl:=1) {
 		return is_array ? "[" out "]" : "{" out "}"
 	}
 
-	else if (ObjGetCapacity([obj], 1) == "")
-		return InStr("01", obj) ? (obj ? "true" : "false") : obj
+	else if (ObjGetCapacity([obj], 1) == "") ;// number
+		return obj
 
-	else if (obj == "")
-		return n := "null" ;// compensate for v2.0-a049 bug/behavior
+	;// null - not supported by AHK
 
 	static ord := Func(is_v2 ? "Ord" : "Asc")
 	static esc_seq := { ;// JSON escape sequences
