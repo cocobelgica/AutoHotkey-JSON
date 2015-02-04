@@ -1,59 +1,36 @@
-Json2(src, arg1:="", arg2:="")
+Jxon_Load(src, args*)
 {
-	if IsObject(src)
-	{
-		ret := _Json2(src, arg2) ;// arg2=indent
-		if (arg1 == "")
-			return ret
-		if !(fobj := FileOpen(arg1, "w")) ;// arg1=outfile
-			throw Exception(Format("Failed to open file: '{}' for writing", arg1))
-		bytes := fobj.Write(ret), fobj.Close()
-		return bytes
-	}
-	if FileExist(src)
-	{
-		if !(fobj := FileOpen(src, "r"))
-			throw Exception(Format("Failed to open file: '{}' for reading.", src))
-		src := fobj.Read(), fobj.Close()
-	}
-	
-	;// Begin de-serialization routine
-	static is_v2 := (A_AhkVersion >= "2"), q := Chr(34) ;// Double quote
-	     , ObjPush     := Func(is_v2 ? "ObjPush"     : "ObjInsert")
-	     , ObjInsertAt := Func(is_v2 ? "ObjInsertAt" : "ObjInsert")
-	     , ObjRemoveAt := Func(is_v2 ? "ObjRemoveAt" : "ObjRemove")
-	     ; , ObjRawSet   := Func(is_v2 ? "ObjRawSet"   : "ObjInsert")
-	     ; , ObjPop      := Func(is_v2 ? "ObjPop"      : "ObjRemove")
-	static esc_seq := {
-	(Join Q C
-		(q): q,
-		"/": "/",
-		"b": "`b",
-		"f": "`f",
-		"n": "`n",
-		"r": "`r",
-		"t": "`t"
-	)}
-	
-	i := 0, strings := [], end := 0-is_v2
-	while (i := InStr(src, q,, i+1))
+	static is_v2 := A_AhkVersion >= "2", q := Chr(34)
+
+	i := 0, strings := [], end := is_v2 ? -1 : 0
+	while i := InStr(src, q,, i+1)
 	{
 		j := i
-		while (j := InStr(src, q,, j+1))
+		while j := InStr(src, q,, j+1)
 		{
 			str := SubStr(src, i+1, j-i-1)
-			;// 'StringReplace, str, str, \\, \u005C, A' workaround
 			k := -5
-			while (k := InStr(str, "\\",, k+6))
+			while k := InStr(str, "\\",, k+6)
 				str := SubStr(str, 1, k-1) . "\u005C" . SubStr(str, k+2)
 			if (SubStr(str, end) != "\")
 				break
 		}
 		if !j
-			throw Exception("Missing close quote(s)")
-		
+			throw Exception("Missing close quote(s)", -1)
+
 		src := SubStr(src, 1, i) . SubStr(src, j+1)
-		
+
+		static esc_seq := {
+		(Join Q C
+			(q): q,
+			"/": "/",
+			"b": "`b",
+			"f": "`f",
+			"n": "`n",
+			"r": "`r",
+			"t": "`t"
+		)}
+
 		z := 0
 		while (z := InStr(str, "\",, z+1))
 		{
@@ -69,48 +46,54 @@ Json2(src, arg1:="", arg2:="")
 				str := SubStr(str, 1, z-1) . Chr(hex) . SubStr(str, z+6)
 			}
 			else
-				throw Exception("Invalid escape sequence")
+				throw Exception("Invalid escape sequence", -1, "\" . ch)
 		}
+		
+		static ObjPush := Func(is_v2 ? "ObjPush" : "ObjInsert")
 		%ObjPush%(strings, str)
 	}
 
-	static t := "true", f := "false", n := "null", null := ""
-	jbase := Object("[", arg1, "{", arg2) ;// { "[":arg1, "{":arg2 }
-	, pos := 0
-	, key := "", is_key := false
-	, stack := [tree := []]
-	, is_arr := {(tree): 1}
-	, next := q . "{[01234567890-tfn"
-	while ((ch := SubStr(src, ++pos, 1)) != "")
+	key := "", is_key := false
+	stack := [ tree := [] ]
+	is_arr := { (tree): 1 }
+	next := q . "{[01234567890-tfn"
+	pos := 0
+	while ( (ch := SubStr(src, ++pos, 1)) != "" )
 	{
 		if InStr(" `t`n`r", ch)
 			continue
 		if !InStr(next, ch)
-			throw Exception(Format("Unexpected char: '{}'", ch))
-		
+			throw Exception("Unexpected char", -1, ch)
+
 		is_array := is_arr[obj := stack[1]]
-		
-		if InStr("{[", ch)
+
+		if i := InStr("{[", ch)
 		{
-			val := (proto := jbase[ch]) ? new proto : {}
-			;// is_array? %ObjPush%(obj, val) : %ObjRawSet%(obj, key, val)
-			, obj[is_array? NumGet(&obj + 4*A_PtrSize)+1 : key] := val
-			, %ObjInsertAt%(stack, 1, val)
-			, is_arr[val] := !(is_key := ch == "{")
-			, next := q . (is_key ? "}" : "{[]0123456789-tfn")
+			val := (proto := args[i]) ? new proto : {}
+			is_array? %ObjPush%(obj, val) : obj[key] := val
+			
+			static ObjInsertAt := Func(is_v2 ? "ObjInsertAt" : "ObjInsert")
+			%ObjInsertAt%(stack, 1, val)
+			
+			is_arr[val] := !(is_key := ch == "{")
+			next := q . (is_key ? "}" : "{[]0123456789-tfn")
 		}
 
 		else if InStr("}]", ch)
 		{
+			static ObjRemoveAt := Func(is_v2 ? "ObjRemoveAt" : "ObjRemove")
 			%ObjRemoveAt%(stack, 1)
-			, next := is_arr[stack[1]] ? "]," : "},"
+			
+			next := is_arr[stack[1]] ? "]," : "},"
 		}
 
 		else if InStr(",:", ch)
 		{
 			if (obj == tree)
-				throw Exception(Format("Unexpected char: '{}' -> there is no container object.", ch))
-			next := q . "{[0123456789-tfn", is_key := (!is_array && ch == ",")
+				throw Exception("Unexpected char -> there is no container object", -1, ch)
+			
+			is_key := (!is_array && ch == ",")
+			next := q . "{[0123456789-tfn"
 		}
 
 		else
@@ -124,37 +107,40 @@ Json2(src, arg1:="", arg2:="")
 					continue
 				}
 			}
+
 			else
 			{
 				val := SubStr(src, pos, (SubStr(src, pos) ~= "[\]\},\s]|$")-1)
-				, pos += StrLen(val)-1
-				if InStr("tfn", ch, 1)
+				pos += StrLen(val)-1
+				if InStr("tfn", ch) ; case-insensitive to avoid casting it to 'else if'
 				{
-					if !(val == %ch%)
-						throw Exception(Format("Expected '{}' instead of '{}'", %ch%, val))
+					static t := "true", f := "false", n := "null", null := ""
+					if !(val == %ch%) ; case-sensitive comparison
+						throw Exception(Format("Expected '{}' instead of '{}'", %ch%, val), -1)
 					val := %val%
 				}
 				else if (Abs(val) == "")
-					throw Exception("Invalid number: " . val)
-				val := val + 0 ;// val += 0 on v1.1+ converts "" to 0
+					throw Exception("Invalid number", -1, val)
+				val := val + 0 ; val += 0 on v1.1+ converts "" to 0
 			}
-			;// is_array? %ObjPush%(obj, val) : %ObjRawSet%(obj, key, val)
-			obj[is_array? NumGet(&obj + 4*A_PtrSize)+1 : key] := val
-			, next := is_array ? "]," : "},"
+			
+			is_array? %ObjPush%(obj, val) : obj[key] := val
+			next := is_array ? "]," : "},"
 		}
 	}
+
 	return tree[1]
 }
 
-_Json2(obj, indent:="", lvl:=1)
+Jxon_Dump(obj, indent:="", lvl:=1)
 {
-	static is_v2 := (A_AhkVersion >= "2"), q := Chr(34)
+	static q := Chr(34)
 
 	if IsObject(obj)
 	{
 		if (ObjGetCapacity(obj) == "")
-			throw Exception("Only standard AHK objects are supported")
-		
+			throw Exception("Only standard AHK objects are supported.", -1, Format("0x{:x}", &obj))
+
 		is_array := 0
 		for k in obj
 			is_array := k == A_Index
@@ -163,7 +149,7 @@ _Json2(obj, indent:="", lvl:=1)
 		if (Abs(indent) != "")
 		{
 			if (indent < 0)
-				throw Exception("Indent parameter must be a postive integer")
+				throw Exception("Indent parameter must be a postive integer.", -1, indent)
 			spaces := indent, indent := ""
 			Loop % spaces
 				indent .= " "
@@ -176,14 +162,15 @@ _Json2(obj, indent:="", lvl:=1)
 		for k, v in obj
 		{
 			if IsObject(k) || (k == "")
-				throw Exception("Invalid JSON key")
+				throw Exception("Invalid JSON key", -1)
 			
 			if !is_array
-				out .= ( ObjGetCapacity([k], 1) ? _Json2(k) : q . k . q ) ;// key
+				out .= ( ObjGetCapacity([k], 1) ? Jxon_Dump(k) : q . k . q ) ;// key
 				    .  ( indent ? ": " : ":" ) ;// token + padding
-			out .= _Json2(v, indent, lvl) ;// value
+			out .= Jxon_Dump(v, indent, lvl) ;// value
 			    .  ( indent ? ",`n" . indt : "," ) ;// token + indent
 		}
+
 		if (out != "")
 		{
 			out := Trim(out, ",`n" . indent)
@@ -194,40 +181,60 @@ _Json2(obj, indent:="", lvl:=1)
 		return is_array ? "[" out "]" : "{" out "}"
 	}
 
-	else if (ObjGetCapacity([obj], 1) == "") ;// number
+	; Number
+	else if (ObjGetCapacity([obj], 1) == "")
 		return obj
 
-	;// null - not supported by AHK
-
-	static Ord := Func(is_v2 ? "Ord" : "Asc")
-	static esc_seq := { ;// JSON escape sequences
-	(Join Q C
-		(q): "\" q,
-		"/":  "\/",
-		"`b": "\b",
-		"`f": "\f",
-		"`n": "\n",
-		"`r": "\r",
-		"`t": "\t"
-	)}
+	; String (null -> not supported by AHK)
 	if (obj != "")
 	{
+		static esc_seq := { ; JSON escape sequences
+		(Join Q C
+			(q): "\" q,
+			"/":  "\/",
+			"`b": "\b",
+			"`f": "\f",
+			"`n": "\n",
+			"`r": "\r",
+			"`t": "\t"
+		)}
+
 		i := -1
-		while (i := InStr(obj, "\",, i+2)) ;// Replacement is 2 chars long
+		while i := InStr(obj, "\",, i+2) ; Replacement is 2 chars long
 			obj := SubStr(obj, 1, i-1) . "\\" . SubStr(obj, i+1)
 		for k, v in esc_seq
 		{
 			i := -1
-			while (i := InStr(obj, k,, i+2))
+			while i := InStr(obj, k,, i+2)
 				obj := SubStr(obj, 1, i-1) . v . SubStr(obj, i+1)
 		}
-		i := -5 ;// i+6 -> Unicode escape sequence is 6 chars long
-		while (i := RegExMatch(obj, "[^\x20-\x7e]", wstr, i+6))
+
+		static Ord := Func(A_AhkVersion<"2" ? "Asc" : "Ord")
+		i := -5 ; i+6 -> Unicode escape sequence is 6 chars long
+		while i := RegExMatch(obj, "[^\x20-\x7e]", wstr, i+6)
 			obj := Format("{1}\u{2:04X}{3}"
 			       , SubStr(obj, 1, i-1)
-			       , %Ord%(is_v2 ? wstr.Value : wstr) ;// char code point
+			       , %Ord%(IsObject(wstr) ? wstr.Value : wstr) ; char code point
 			       , SubStr(obj, i+1))
 	}
 	
 	return q . obj . q
+}
+
+Jxon_Read(src, prototype*)
+{
+	if f := FileOpen(src, "r", "UTF-8")
+	{
+		jstr := f.Read(), f.Close()
+		return Jxon_Load(jstr, prototype*)
+	}
+}
+
+Jxon_Write(obj, dest, indent:="")
+{
+	if f := FileOpen(dest, "w", "UTF-8")
+	{
+		bytes := f.Write(Jxon_Dump(obj, indent)), f.Close()
+		return bytes
+	}
 }
