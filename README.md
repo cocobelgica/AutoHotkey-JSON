@@ -1,4 +1,4 @@
-# JSON and JSON2
+# JSON and Jxon
 
 #### [JSON](http://json.org/) module for [AutoHotkey](http://ahkscript.org/)
 
@@ -8,7 +8,7 @@ License: [WTFPL](http://wtfpl.net/)
 
 - - -
 
-## JSON (class)
+## JSON.ahk (class)
 There are multiple version(s) available (as branches) in this repo to provide support for different AutoHotkey builds. The _master_ branch is for `v1.1` _(except for Json2.ahk which is version independent)_ while the _v2_ branch is for `AHK v2.0-a`.
 
 - - -
@@ -17,9 +17,9 @@ There are multiple version(s) available (as branches) in this repo to provide su
 Deserialize _src_ (a JSON formatted string) to an AutoHotkey object
 
 #### Syntax:
-```
-obj := JSON.parse( src [, jsonize := false ] )
-```
+
+    obj := JSON.parse( src [, jsonize := false ] )
+
 
 #### Return Value:
 An AutoHotkey object
@@ -34,9 +34,9 @@ An AutoHotkey object
 serialize _obj_ to a JSON formatted string 
 
 #### Syntax:
-```
-str := JSON.stringify( obj, [, indent := "" ] )
-```
+
+    str := JSON.stringify( obj, [, indent := "" ] )
+
 
 #### Return Value:
 A JSON formatted string
@@ -47,18 +47,18 @@ A JSON formatted string
 
 - - -
  
-## JSON2 (function)
+## Jxon.ahk (function)
 Similar to the JSON class above just implemented as a function. Unlike JSON (class) above, this implementation provides _reading from_ and _writing to_ file. Works on both AutoHotkey _v1.1_ and _v2.0_
 
 - - -
 
-#### Deserialize
+### Jxon_Load()
 Deserialize _src_ (a JSON formatted string) to an AutoHotkey object
 
 #### Syntax:
-```
-obj := Json2( src [, object_base := "", array_base := "" ])
-```
+
+    obj := Jxon_Load( src [ , object_base := "", array_base := "" ] )
+
 
 #### Parameter(s):
  * **src** [in] - JSON formatted string or path to the file containing JSON formatted string.
@@ -67,19 +67,36 @@ obj := Json2( src [, object_base := "", array_base := "" ])
 
 - - -
 
-#### Serialize
-Serialize _obj_ to a JSON formatted string OR dumps _obj_ to the file specified in _out_
+### Jxon_Dump()
+Serialize _obj_ to a JSON formatted string
 
 #### Syntax:
-```
-str           := Json2( obj [, out := "", indent := "" ])
-bytes_written := Json2( obj, out [, indent := "" ])
-```
+
+    str := Jxon_Dump( obj [ , indent := "" ] )
+
 
 #### Return Value:
-A JSON formatted string. If _out_ is specified, the number of bytes written is returned.
+A JSON formatted string.
 
 #### Parameter(s):
  * **obj** [in] - this argument has the same meaning as in _JSON.stringify()_
- * **out** [in, opt] - path to the file to write to. If specified, the function returns the number of bytes written.
  * **indent** [in, opt] - this argument has the same meaning as in _JSON.stringify()_
+
+- - -
+
+### Jxon_Read()
+Similar to `Jxon_Load()` except _src_ is a path to the file containing a JSON document.
+
+#### Syntax:
+
+    Jxon_Read( src [ , object_base := "", array_base := "" ] )
+    
+<br>
+- - -
+
+### Jxon_Write()
+Similar to `Jxon_Dump()` except output is written to _dest_. The number of bytes written is returned if successful.
+
+#### Syntax:
+
+    bytes_written := Jxon_Write( obj , dest [ , indent := "" ] )
