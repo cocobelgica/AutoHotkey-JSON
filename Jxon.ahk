@@ -2,51 +2,43 @@ Jxon_Load(src, args*)
 {
 	static is_v2 := A_AhkVersion >= "2", q := Chr(34)
 
-	i := 0, strings := [], end := is_v2 ? -1 : 0
+	i := 0, strings := []
 	while i := InStr(src, q,, i+1)
 	{
+		static Replace := Func(is_v2 ? "StrReplace" : "RegExReplace")
+		static bash := is_v2 ? "\" : "\\"
+
 		j := i
 		while j := InStr(src, q,, j+1)
 		{
-			str := SubStr(src, i+1, j-i-1)
-			k := -5
-			while k := InStr(str, "\\",, k+6)
-				str := SubStr(str, 1, k-1) . "\u005C" . SubStr(str, k+2)
+			str := %Replace%(SubStr(src, i+1, j-i-1), bash . bash, "\u005C")
+			static end := is_v2 ? -1 : 0
 			if (SubStr(str, end) != "\")
 				break
 		}
 		if !j
-			throw Exception("Missing close quote(s)", -1)
+			throw Exception("Missing close quote(s).", -1)
 
 		src := SubStr(src, 1, i) . SubStr(src, j+1)
 
-		static esc_seq := {
-		(Join Q C
-			(q): q,
-			"/": "/",
-			"b": "`b",
-			"f": "`f",
-			"n": "`n",
-			"r": "`r",
-			"t": "`t"
-		)}
+		  str := %Replace%(str, bash . "/",  "/")
+		, str := %Replace%(str, bash .   q,    q)
+		, str := %Replace%(str, bash . "b", "`b")
+		, str := %Replace%(str, bash . "f", "`f")
+		, str := %Replace%(str, bash . "n", "`n")
+		, str := %Replace%(str, bash . "r", "`r")
+		, str := %Replace%(str, bash . "t", "`t")
 
-		z := 0
-		while (z := InStr(str, "\",, z+1))
+		j := 0
+		while j := InStr(str, "\",, j+1) ; parse remaining chars with preceding "\"
 		{
-			ch := SubStr(str, z+1, 1)
-			if InStr(q . "btnfr/", ch, 1)
-				str := SubStr(str, 1, z-1) . esc_seq[ch] . SubStr(str, z+2)
-			
-			else if (ch = "u")
-			{
-				hex := "0x" . SubStr(str, z+2, 4)
-				if !(A_IsUnicode || (Abs(hex) < 0x100))
-					continue
-				str := SubStr(str, 1, z-1) . Chr(hex) . SubStr(str, z+6)
-			}
-			else
-				throw Exception("Invalid escape sequence", -1, "\" . ch)
+			if (SubStr(str, j+1, 1) != "u")
+				throw Exception("Invalid escape sequence.", -1, SubStr(str, j, 2))
+
+			; \uXXXX - JSON unicode escape sequence
+			ord := Abs("0x" . SubStr(str, j+2, 4)) ; XXXX
+			if (A_IsUnicode || ord < 0x100)
+				str := SubStr(str, 1, j-1) . Chr(ord) . SubStr(str, j+6)
 		}
 		
 		static ObjPush := Func(is_v2 ? "ObjPush" : "ObjInsert")
@@ -63,7 +55,7 @@ Jxon_Load(src, args*)
 		if InStr(" `t`n`r", ch)
 			continue
 		if !InStr(next, ch)
-			throw Exception("Unexpected char", -1, ch)
+			throw Exception("Unexpected char.", -1, ch)
 
 		is_array := is_arr[obj := stack[1]]
 
@@ -90,7 +82,7 @@ Jxon_Load(src, args*)
 		else if InStr(",:", ch)
 		{
 			if (obj == tree)
-				throw Exception("Unexpected char -> there is no container object", -1, ch)
+				throw Exception("Unexpected char -> there is no container object.", -1, ch)
 			
 			is_key := (!is_array && ch == ",")
 			next := q . "{[0123456789-tfn"
@@ -98,7 +90,7 @@ Jxon_Load(src, args*)
 
 		else
 		{
-			if (ch == q)
+			if (ch == q) ; string
 			{
 				val := %ObjRemoveAt%(strings, 1)
 				if is_key
@@ -108,7 +100,7 @@ Jxon_Load(src, args*)
 				}
 			}
 
-			else
+			else ; number, true|false|null
 			{
 				val := SubStr(src, pos, (SubStr(src, pos) ~= "[\]\},\s]|$")-1)
 				pos += StrLen(val)-1
@@ -116,11 +108,11 @@ Jxon_Load(src, args*)
 				{
 					static t := "true", f := "false", n := "null", null := ""
 					if !(val == %ch%) ; case-sensitive comparison
-						throw Exception(Format("Expected '{}' instead of '{}'", %ch%, val), -1)
+						throw Exception(Format("Expected '{}' instead of '{}'.", %ch%, val), -1)
 					val := %val%
 				}
 				else if (Abs(val) == "")
-					throw Exception("Invalid number", -1, val)
+					throw Exception("Invalid number.", -1, val)
 				val := val + 0 ; val += 0 on v1.1+ converts "" to 0
 			}
 			
@@ -139,14 +131,15 @@ Jxon_Dump(obj, indent:="", lvl:=1)
 	if IsObject(obj)
 	{
 		if (ObjGetCapacity(obj) == "")
-			throw Exception("Only standard AHK objects are supported.", -1, Format("0x{:x}", &obj))
+			throw Exception("Object type not supported.", -1, Format("<Object at 0x{:p}>", &obj))
 
 		is_array := 0
 		for k in obj
 			is_array := k == A_Index
 		until !is_array
 
-		if (Abs(indent) != "")
+		static integer := "integer"
+		if indent is %integer%
 		{
 			if (indent < 0)
 				throw Exception("Indent parameter must be a postive integer.", -1, indent)
@@ -158,7 +151,7 @@ Jxon_Dump(obj, indent:="", lvl:=1)
 		Loop, % indent ? lvl : 0
 			indt .= indent
 
-		lvl += 1, out := "" ;// Make #Warn happy
+		lvl += 1, out := "" ; Make #Warn happy
 		for k, v in obj
 		{
 			if IsObject(k) || (k == "")
@@ -166,9 +159,9 @@ Jxon_Dump(obj, indent:="", lvl:=1)
 			
 			if !is_array
 				out .= ( ObjGetCapacity([k], 1) ? Jxon_Dump(k) : q . k . q ) ;// key
-				    .  ( indent ? ": " : ":" ) ;// token + padding
-			out .= Jxon_Dump(v, indent, lvl) ;// value
-			    .  ( indent ? ",`n" . indt : "," ) ;// token + indent
+				    .  ( indent ? ": " : ":" ) ; token + padding
+			out .= Jxon_Dump(v, indent, lvl) ; value
+			    .  ( indent ? ",`n" . indt : "," ) ; token + indent
 		}
 
 		if (out != "")
@@ -178,7 +171,7 @@ Jxon_Dump(obj, indent:="", lvl:=1)
 				out := "`n" . indt . out . "`n" . SubStr(indt, StrLen(indent)+1)
 		}
 		
-		return is_array ? "[" out "]" : "{" out "}"
+		return is_array ? "[" . out . "]" : "{" . out . "}"
 	}
 
 	; Number
@@ -188,34 +181,20 @@ Jxon_Dump(obj, indent:="", lvl:=1)
 	; String (null -> not supported by AHK)
 	if (obj != "")
 	{
-		static esc_seq := { ; JSON escape sequences
-		(Join Q C
-			(q): "\" q,
-			"/":  "\/",
-			"`b": "\b",
-			"`f": "\f",
-			"`n": "\n",
-			"`r": "\r",
-			"`t": "\t"
-		)}
-
-		i := -1
-		while i := InStr(obj, "\",, i+2) ; Replacement is 2 chars long
-			obj := SubStr(obj, 1, i-1) . "\\" . SubStr(obj, i+1)
-		for k, v in esc_seq
-		{
-			i := -1
-			while i := InStr(obj, k,, i+2)
-				obj := SubStr(obj, 1, i-1) . v . SubStr(obj, i+1)
-		}
+		static Replace := Func(A_AhkVersion<"2" ? "RegExReplace" : "StrReplace")
+		static bash := A_AhkVersion<"2" ? "\\" : "\"
+		  obj := %Replace%(obj,  bash,    "\\")
+		, obj := %Replace%(obj,   "/",    "\/")
+		, obj := %Replace%(obj,     q, "\" . q)
+		, obj := %Replace%(obj,  "`b",    "\b")
+		, obj := %Replace%(obj,  "`f",    "\f")
+		, obj := %Replace%(obj,  "`n",    "\n")
+		, obj := %Replace%(obj,  "`r",    "\r")
+		, obj := %Replace%(obj,  "`t",    "\t")
 
 		static Ord := Func(A_AhkVersion<"2" ? "Asc" : "Ord")
-		i := -5 ; i+6 -> Unicode escape sequence is 6 chars long
-		while i := RegExMatch(obj, "[^\x20-\x7e]", wstr, i+6)
-			obj := Format("{1}\u{2:04X}{3}"
-			       , SubStr(obj, 1, i-1)
-			       , %Ord%(IsObject(wstr) ? wstr.Value : wstr) ; char code point
-			       , SubStr(obj, i+1))
+		while RegExMatch(obj, "[^\x20-\x7e]", m)
+			obj := %Replace%(obj, ch := IsObject(m) ? m[0] : m, Format("\u{:04X}", %Ord%(ch)))
 	}
 	
 	return q . obj . q
