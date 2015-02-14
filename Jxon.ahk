@@ -207,21 +207,3 @@ Jxon_Dump(obj, indent:="", lvl:=1)
 	
 	return q . obj . q
 }
-
-Jxon_Read(src, prototype*)
-{
-	if f := FileOpen(src, "r", "UTF-8")
-	{
-		jstr := f.Read(), f.Close()
-		return Jxon_Load(jstr, prototype*)
-	}
-}
-
-Jxon_Write(obj, dest, indent:="")
-{
-	if f := FileOpen(dest, "w", "UTF-8")
-	{
-		bytes := f.Write(Jxon_Dump(obj, indent)), f.Close()
-		return bytes
-	}
-}
