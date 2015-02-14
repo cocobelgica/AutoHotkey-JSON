@@ -43,7 +43,7 @@ Jxon_Load(ByRef src, args*)
 				throw Exception("Unexpected char -> there is no container object.", -1, ch)
 			
 			is_key := (!is_array && ch == ",")
-			next := q . "{[0123456789-tfn"
+			next := is_key ? q : q . "{[0123456789-tfn"
 		}
 
 		else ; string | number | true | false | null
