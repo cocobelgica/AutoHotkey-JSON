@@ -16,8 +16,26 @@ Jxon_Load(ByRef src, args*)
 
 		if InStr(" `t`n`r", ch)
 			continue
-		if !InStr(next, ch)
-			throw Exception("Unexpected char.", -1, ch)
+		if !InStr(next, ch, true)
+		{
+			ln := StrSplit(SubStr(src, 1, pos), "`n")[is_v2 ? "Length" : "MaxIndex"]()
+			col := pos - InStr(src, "`n",, -(StrLen(src)-pos+1))
+
+			msg := Format("{}: line {} col {} (char {})"
+			,   (next == "")      ? ["Extra data", ch := SubStr(src, pos)][1]
+			  : (next == "'")     ? "Unterminated string starting at"
+			  : (next == "\")     ? "Invalid \escape"
+			  : (next == ":")     ? "Expecting ':' delimiter"
+			  : (next == q)       ? "Expecting object key enclosed in double quotes"
+			  : (next == q . "}") ? "Expecting object key enclosed in double quotes or object closing '}'"
+			  : (next == ",}")    ? "Expecting ',' delimiter or object closing '}'"
+			  : (next == ",]")    ? "Expecting ',' delimiter or array closing ']'"
+			  : [ "Expecting JSON value(string, number, [true, false, null], object or array)"
+			    , ch := SubStr(src, pos, (SubStr(src, pos)~="[\]\},\s]|$")-1) ][1]
+			, ln, col, pos)
+
+			throw Exception(msg, -1, ch)
+		}
 
 		is_array := is_arr[obj := stack[1]]
 
@@ -34,7 +52,7 @@ Jxon_Load(ByRef src, args*)
 		else if InStr("}]", ch)
 		{
 			%ObjRemoveAt%(stack, 1)
-			next := is_arr[stack[1]] ? "]," : "},"
+			next := stack[1]==tree ? "" : is_arr[stack[1]] ? ",]" : ",}"
 		}
 
 		else if InStr(",:", ch)
@@ -61,8 +79,8 @@ Jxon_Load(ByRef src, args*)
 					if (SubStr(val, end) != "\")
 						break
 				}
-				if !i
-					throw Exception("Missing close quote(s).", -1)
+				if !i ? (pos--, next := "'") : 0
+					continue
 
 				pos := i ; update pos
 
@@ -77,8 +95,8 @@ Jxon_Load(ByRef src, args*)
 				i := 0
 				while i := InStr(val, "\",, i+1)
 				{
-					if (SubStr(val, i+1, 1) != "u")
-						throw Exception("Invalid escape sequence.", -1, SubStr(val, i, 2))
+					if (SubStr(val, i+1, 1) != "u") ? (pos -= StrLen(SubStr(val, i)), next := "\") : 0
+						continue 2
 
 					; \uXXXX - JSON unicode escape sequence
 					xxxx := Abs("0x" . SubStr(val, i+2, 4))
@@ -93,21 +111,21 @@ Jxon_Load(ByRef src, args*)
 				}
 			}
 
-			else ; number | true,false,null
+			else ; number | true | false | null
 			{
 				val := SubStr(src, pos, i := RegExMatch(src, "[\]\},\s]|$",, pos)-pos)
 				
-				static null := ""
+				static null := "", Ord := Func(is_v2 ? "Ord" : "Asc")
 				if InStr(",true,false,null,", "," . val . ",", true) ; if var in
 					val := %val%
-				else if (Abs(val) == "")
-					throw Exception("Invalid JSON value.", -1, val)
+				else if (Abs(val) == "") ? (pos--, next := Chr(%Ord%(ch)+1)) : 0
+					continue
 				
 				val := val + 0, pos += i-1
 			}
 			
 			is_array? %ObjPush%(obj, val) : obj[key] := val
-			next := is_array ? "]," : "},"
+			next := obj==tree ? "" : is_array ? ",]" : ",}"
 		}
 	}
 
