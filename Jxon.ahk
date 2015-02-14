@@ -1,49 +1,6 @@
-Jxon_Load(src, args*)
+Jxon_Load(ByRef src, args*)
 {
-	static is_v2 := A_AhkVersion >= "2", q := Chr(34)
-
-	i := 0, strings := []
-	while i := InStr(src, q,, i+1)
-	{
-		static Replace := Func(is_v2 ? "StrReplace" : "RegExReplace")
-		static bash := is_v2 ? "\" : "\\"
-
-		j := i
-		while j := InStr(src, q,, j+1)
-		{
-			str := %Replace%(SubStr(src, i+1, j-i-1), bash . bash, "\u005C")
-			static end := is_v2 ? -1 : 0
-			if (SubStr(str, end) != "\")
-				break
-		}
-		if !j
-			throw Exception("Missing close quote(s).", -1)
-
-		src := SubStr(src, 1, i) . SubStr(src, j+1)
-
-		  str := %Replace%(str, bash . "/",  "/")
-		, str := %Replace%(str, bash .   q,    q)
-		, str := %Replace%(str, bash . "b", "`b")
-		, str := %Replace%(str, bash . "f", "`f")
-		, str := %Replace%(str, bash . "n", "`n")
-		, str := %Replace%(str, bash . "r", "`r")
-		, str := %Replace%(str, bash . "t", "`t")
-
-		j := 0
-		while j := InStr(str, "\",, j+1) ; parse remaining chars with preceding "\"
-		{
-			if (SubStr(str, j+1, 1) != "u")
-				throw Exception("Invalid escape sequence.", -1, SubStr(str, j, 2))
-
-			; \uXXXX - JSON unicode escape sequence
-			ord := Abs("0x" . SubStr(str, j+2, 4)) ; XXXX
-			if (A_IsUnicode || ord < 0x100)
-				str := SubStr(str, 1, j-1) . Chr(ord) . SubStr(str, j+6)
-		}
-		
-		static ObjPush := Func(is_v2 ? "ObjPush" : "ObjInsert")
-		%ObjPush%(strings, str)
-	}
+	static q := Chr(34)
 
 	key := "", is_key := false
 	stack := [ tree := [] ]
@@ -52,6 +9,11 @@ Jxon_Load(src, args*)
 	pos := 0
 	while ( (ch := SubStr(src, ++pos, 1)) != "" )
 	{
+		static is_v2       := A_AhkVersion >= "2"
+		static ObjPush     := Func(is_v2 ? "ObjPush"     : "ObjInsert")
+		static ObjInsertAt := Func(is_v2 ? "ObjInsertAt" : "ObjInsert")
+		static ObjRemoveAt := Func(is_v2 ? "ObjRemoveAt" : "ObjRemove")
+
 		if InStr(" `t`n`r", ch)
 			continue
 		if !InStr(next, ch)
@@ -63,8 +25,6 @@ Jxon_Load(src, args*)
 		{
 			val := (proto := args[i]) ? new proto : {}
 			is_array? %ObjPush%(obj, val) : obj[key] := val
-			
-			static ObjInsertAt := Func(is_v2 ? "ObjInsertAt" : "ObjInsert")
 			%ObjInsertAt%(stack, 1, val)
 			
 			is_arr[val] := !(is_key := ch == "{")
@@ -73,9 +33,7 @@ Jxon_Load(src, args*)
 
 		else if InStr("}]", ch)
 		{
-			static ObjRemoveAt := Func(is_v2 ? "ObjRemoveAt" : "ObjRemove")
 			%ObjRemoveAt%(stack, 1)
-			
 			next := is_arr[stack[1]] ? "]," : "},"
 		}
 
@@ -88,11 +46,46 @@ Jxon_Load(src, args*)
 			next := q . "{[0123456789-tfn"
 		}
 
-		else
+		else ; string | number | true | false | null
 		{
 			if (ch == q) ; string
 			{
-				val := %ObjRemoveAt%(strings, 1)
+				static Replace := Func(is_v2 ? "StrReplace" : "RegExReplace")
+				static bash := is_v2 ? "\" : "\\"
+
+				i := pos
+				while i := InStr(src, q,, i+1)
+				{
+					val := %Replace%(SubStr(src, pos+1, i-pos-1), bash . bash, "\u005C")
+					static end := is_v2 ? -1 : 0
+					if (SubStr(val, end) != "\")
+						break
+				}
+				if !i
+					throw Exception("Missing close quote(s).", -1)
+
+				pos := i ; update pos
+
+				  val := %Replace%(val, bash . "/",  "/")
+				, val := %Replace%(val, bash .   q,    q)
+				, val := %Replace%(val, bash . "b", "`b")
+				, val := %Replace%(val, bash . "f", "`f")
+				, val := %Replace%(val, bash . "n", "`n")
+				, val := %Replace%(val, bash . "r", "`r")
+				, val := %Replace%(val, bash . "t", "`t")
+
+				i := 0
+				while i := InStr(val, "\",, i+1)
+				{
+					if (SubStr(val, i+1, 1) != "u")
+						throw Exception("Invalid escape sequence.", -1, SubStr(val, i, 2))
+
+					; \uXXXX - JSON unicode escape sequence
+					xxxx := Abs("0x" . SubStr(val, i+2, 4))
+					if (A_IsUnicode || xxxx < 0x100)
+						val := SubStr(val, 1, i-1) . Chr(xxxx) . SubStr(val, i+6)
+				}
+
 				if is_key
 				{
 					key := val, next := ":"
