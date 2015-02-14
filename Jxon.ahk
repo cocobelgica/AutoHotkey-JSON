@@ -57,9 +57,6 @@ Jxon_Load(ByRef src, args*)
 
 		else if InStr(",:", ch)
 		{
-			if (obj == tree)
-				throw Exception("Unexpected char -> there is no container object.", -1, ch)
-			
 			is_key := (!is_array && ch == ",")
 			next := is_key ? q : q . "{[0123456789-tfn"
 		}
@@ -163,7 +160,7 @@ Jxon_Dump(obj, indent:="", lvl:=1)
 		for k, v in obj
 		{
 			if IsObject(k) || (k == "")
-				throw Exception("Invalid JSON key", -1)
+				throw Exception("Invalid object key.", -1, k ? Format("<Object at 0x{:p}>", &obj) : "<blank>")
 			
 			if !is_array
 				out .= ( ObjGetCapacity([k], 1) ? Jxon_Dump(k) : q . k . q ) ;// key
