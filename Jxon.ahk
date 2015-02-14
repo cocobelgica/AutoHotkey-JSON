@@ -93,20 +93,17 @@ Jxon_Load(ByRef src, args*)
 				}
 			}
 
-			else ; number, true|false|null
+			else ; number | true,false,null
 			{
-				val := SubStr(src, pos, (SubStr(src, pos) ~= "[\]\},\s]|$")-1)
-				pos += StrLen(val)-1
-				if InStr("tfn", ch) ; case-insensitive to avoid casting it to 'else if'
-				{
-					static t := "true", f := "false", n := "null", null := ""
-					if !(val == %ch%) ; case-sensitive comparison
-						throw Exception(Format("Expected '{}' instead of '{}'.", %ch%, val), -1)
+				val := SubStr(src, pos, i := RegExMatch(src, "[\]\},\s]|$",, pos)-pos)
+				
+				static null := ""
+				if InStr(",true,false,null,", "," . val . ",", true) ; if var in
 					val := %val%
-				}
 				else if (Abs(val) == "")
-					throw Exception("Invalid number.", -1, val)
-				val := val + 0 ; val += 0 on v1.1+ converts "" to 0
+					throw Exception("Invalid JSON value.", -1, val)
+				
+				val := val + 0, pos += i-1
 			}
 			
 			is_array? %ObjPush%(obj, val) : obj[key] := val
