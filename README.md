@@ -18,14 +18,14 @@ Deserialize _src_ (a JSON formatted string) to an AutoHotkey object
 
 #### Syntax:
 
-    obj := JSON.parse( src [, jsonize := false ] )
+    obj := JSON.parse( ByRef src [, jsonize := false ] )
 
 
 #### Return Value:
 An AutoHotkey object
 
 #### Parameter(s):
- * **src** [in] - JSON formatted string
+ * **src** [in, ByRef] - JSON formatted string
  * **jsonize** [in, opt] - if _true_, **_objects_( ``{}`` )** and **_arrays_( ``[]`` )** are wrapped as **JSON.object** and **JSON.array** instances respectively. This is to compensate for AutoHotkey's non-distinction between these types and other AHK object type quirks. _e.g.: In AutoHotkey, object keys are enumerated in alphabetical order not in the sequence in which they are created_
 
 - - -
@@ -48,7 +48,7 @@ A JSON formatted string
 - - -
  
 ## Jxon.ahk (function)
-Similar to the JSON class above just implemented as a function. Unlike JSON (class) above, this implementation provides _reading from_ and _writing to_ file. Works on both AutoHotkey _v1.1_ and _v2.0_
+Similar to the JSON class above just implemented as a function. ~~Unlike JSON (class) above, this implementation provides _reading from_ and _writing to_ file~~(Removed `Jxon_Read` and `Jxon_Write`). Works on both AutoHotkey _v1.1_ and _v2.0_
 
 - - -
 
@@ -57,11 +57,11 @@ Deserialize _src_ (a JSON formatted string) to an AutoHotkey object
 
 #### Syntax:
 
-    obj := Jxon_Load( src [ , object_base := "", array_base := "" ] )
+    obj := Jxon_Load( ByRef src [ , object_base := "", array_base := "" ] )
 
 
 #### Parameter(s):
- * **src** [in] - JSON formatted string or path to the file containing JSON formatted string.
+ * **src** [in, ByRef] - JSON formatted string or path to the file containing JSON formatted string.
  * **object_base** [in, opt] - an object to use as prototype for objects( ``{}`` ) created during parsing.
  * **array_base** [in, opt] - an object to use as prototype for arrays( ``[]`` ) created during parsing.
 
@@ -81,22 +81,3 @@ A JSON formatted string.
 #### Parameter(s):
  * **obj** [in] - this argument has the same meaning as in _JSON.stringify()_
  * **indent** [in, opt] - this argument has the same meaning as in _JSON.stringify()_
-
-- - -
-
-### Jxon_Read()
-Similar to `Jxon_Load()` except _src_ is a path to the file containing a JSON document.
-
-#### Syntax:
-
-    Jxon_Read( src [ , object_base := "", array_base := "" ] )
-    
-<br>
-- - -
-
-### Jxon_Write()
-Similar to `Jxon_Dump()` except output is written to _dest_. The number of bytes written is returned if successful.
-
-#### Syntax:
-
-    bytes_written := Jxon_Write( obj , dest [ , indent := "" ] )
