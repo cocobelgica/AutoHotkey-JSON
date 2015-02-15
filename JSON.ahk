@@ -1,13 +1,24 @@
+/* Class: JSON
+ *     JSON lib for AutoHotkey
+ * License:
+ *     WTFPL [http://wtfpl.net/]
+ * Requirements:
+ *     AutoHotkey v1.1.17+
+ * Others:
+ *     Github URL:  https://github.com/cocobelgica/AutoHotkey-JSON
+ *     Email:       cocobelgica@gmail.com
+ *     Last Update: 02/15/2015 (MM/DD/YYYY)
+ */
 class JSON
 {
-	/* Function:    parse
-	 * Deserialize a string containing a JSON document to an AHK object.
+	/* Method: parse
+	 *     Deserialize a string containing a JSON document to an AHK object.
 	 * Syntax:
-	 *     json_obj := JSON.parse( src [, jsonize:=false ] )
+	 *     json_obj := JSON.parse( ByRef src [ , jsonize := false ] )
 	 * Parameter(s):
-	 *     src      [in] - String containing a JSON document
-	 *     jsonize  [in] - If true, objects {} and arrays [] are wrapped as
-	 *                     JSON.object and JSON.array instances respectively.
+	 *     src  [in, ByRef] - String containing a JSON document
+	 *     jsonize     [in] - If true, objects {} and arrays [] are wrapped as
+	 *                        JSON.object and JSON.array instances respectively.
 	 */
 	parse(ByRef src, jsonize:=false)
 	{
@@ -130,10 +141,10 @@ class JSON
 		
 		return tree[1]
 	}
-	/* Function:    stringify
-	 * Serialize an object to a JSON formatted string.
+	/* Method: stringify
+	 *     Serialize an object to a JSON formatted string.
 	 * Syntax:
-	 *     json_str := JSON.stringify( obj [, indent:="" ] )
+	 *     json_str := JSON.stringify( obj [ , indent := "" ] )
 	 * Parameter(s):
 	 *     obj      [in] - The object to stringify.
 	 *     indent   [in] - Specify string(s) to use as indentation per level.
