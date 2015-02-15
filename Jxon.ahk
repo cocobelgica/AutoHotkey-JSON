@@ -112,10 +112,10 @@ Jxon_Load(ByRef src, args*)
 			{
 				val := SubStr(src, pos, i := RegExMatch(src, "[\]\},\s]|$",, pos)-pos)
 				
-				static null := "", Ord := Func(is_v2 ? "Ord" : "Asc")
+				static null := "" ; for #Warn
 				if InStr(",true,false,null,", "," . val . ",", true) ; if var in
 					val := %val%
-				else if (Abs(val) == "") ? (pos--, next := Chr(%Ord%(ch)+1)) : 0
+				else if (Abs(val) == "") ? (pos--, next := "#") : 0
 					continue
 				
 				val := val + 0, pos += i-1
