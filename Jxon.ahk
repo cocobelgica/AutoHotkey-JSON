@@ -9,16 +9,11 @@ Jxon_Load(ByRef src, args*)
 	pos := 0
 	while ( (ch := SubStr(src, ++pos, 1)) != "" )
 	{
-		static is_v2       := A_AhkVersion >= "2"
-		static ObjPush     := Func(is_v2 ? "ObjPush"     : "ObjInsert")
-		static ObjInsertAt := Func(is_v2 ? "ObjInsertAt" : "ObjInsert")
-		static ObjRemoveAt := Func(is_v2 ? "ObjRemoveAt" : "ObjRemove")
-
 		if InStr(" `t`n`r", ch)
 			continue
 		if !InStr(next, ch, true)
 		{
-			ln := StrSplit(SubStr(src, 1, pos), "`n")[is_v2 ? "Length" : "MaxIndex"]()
+			ln := ObjLength(StrSplit(SubStr(src, 1, pos), "`n"))
 			col := pos - InStr(src, "`n",, -(StrLen(src)-pos+1))
 
 			msg := Format("{}: line {} col {} (char {})"
@@ -42,8 +37,8 @@ Jxon_Load(ByRef src, args*)
 		if i := InStr("{[", ch)
 		{
 			val := (proto := args[i]) ? new proto : {}
-			is_array? %ObjPush%(obj, val) : obj[key] := val
-			%ObjInsertAt%(stack, 1, val)
+			is_array? ObjPush(obj, val) : obj[key] := val
+			ObjInsertAt(stack, 1, val)
 			
 			is_arr[val] := !(is_key := ch == "{")
 			next := q . (is_key ? "}" : "{[]0123456789-tfn")
@@ -51,7 +46,7 @@ Jxon_Load(ByRef src, args*)
 
 		else if InStr("}]", ch)
 		{
-			%ObjRemoveAt%(stack, 1)
+			ObjRemoveAt(stack, 1)
 			next := stack[1]==tree ? "" : is_arr[stack[1]] ? ",]" : ",}"
 		}
 
@@ -65,14 +60,11 @@ Jxon_Load(ByRef src, args*)
 		{
 			if (ch == q) ; string
 			{
-				static Replace := Func(is_v2 ? "StrReplace" : "RegExReplace")
-				static bash := is_v2 ? "\" : "\\"
-
 				i := pos
 				while i := InStr(src, q,, i+1)
 				{
-					val := %Replace%(SubStr(src, pos+1, i-pos-1), bash . bash, "\u005C")
-					static end := is_v2 ? -1 : 0
+					val := StrReplace(SubStr(src, pos+1, i-pos-1), "\\", "\u005C")
+					static end := A_AhkVersion<"2" ? 0 : -1
 					if (SubStr(val, end) != "\")
 						break
 				}
@@ -81,13 +73,13 @@ Jxon_Load(ByRef src, args*)
 
 				pos := i ; update pos
 
-				  val := %Replace%(val, bash . "/",  "/")
-				, val := %Replace%(val, bash .   q,    q)
-				, val := %Replace%(val, bash . "b", "`b")
-				, val := %Replace%(val, bash . "f", "`f")
-				, val := %Replace%(val, bash . "n", "`n")
-				, val := %Replace%(val, bash . "r", "`r")
-				, val := %Replace%(val, bash . "t", "`t")
+				  val := StrReplace(val,    "\/",  "/")
+				, val := StrReplace(val, "\" . q,    q)
+				, val := StrReplace(val,    "\b", "`b")
+				, val := StrReplace(val,    "\f", "`f")
+				, val := StrReplace(val,    "\n", "`n")
+				, val := StrReplace(val,    "\r", "`r")
+				, val := StrReplace(val,    "\t", "`t")
 
 				i := 0
 				while i := InStr(val, "\",, i+1)
@@ -121,7 +113,7 @@ Jxon_Load(ByRef src, args*)
 				val := val + 0, pos += i-1
 			}
 			
-			is_array? %ObjPush%(obj, val) : obj[key] := val
+			is_array? ObjPush(obj, val) : obj[key] := val
 			next := obj==tree ? "" : is_array ? ",]" : ",}"
 		}
 	}
@@ -186,20 +178,18 @@ Jxon_Dump(obj, indent:="", lvl:=1)
 	; String (null -> not supported by AHK)
 	if (obj != "")
 	{
-		static Replace := Func(A_AhkVersion<"2" ? "RegExReplace" : "StrReplace")
-		static bash := A_AhkVersion<"2" ? "\\" : "\"
-		  obj := %Replace%(obj,  bash,    "\\")
-		, obj := %Replace%(obj,   "/",    "\/")
-		, obj := %Replace%(obj,     q, "\" . q)
-		, obj := %Replace%(obj,  "`b",    "\b")
-		, obj := %Replace%(obj,  "`f",    "\f")
-		, obj := %Replace%(obj,  "`n",    "\n")
-		, obj := %Replace%(obj,  "`r",    "\r")
-		, obj := %Replace%(obj,  "`t",    "\t")
+		  obj := StrReplace(obj,  "\",    "\\")
+		, obj := StrReplace(obj,  "/",    "\/")
+		, obj := StrReplace(obj,    q, "\" . q)
+		, obj := StrReplace(obj, "`b",    "\b")
+		, obj := StrReplace(obj, "`f",    "\f")
+		, obj := StrReplace(obj, "`n",    "\n")
+		, obj := StrReplace(obj, "`r",    "\r")
+		, obj := StrReplace(obj, "`t",    "\t")
 
-		static Ord := Func(A_AhkVersion<"2" ? "Asc" : "Ord")
-		while RegExMatch(obj, "[^\x20-\x7e]", m)
-			obj := %Replace%(obj, ch := IsObject(m) ? m[0] : m, Format("\u{:04X}", %Ord%(ch)))
+		static needle := (A_AhkVersion<"2" ? "O)" : "") . "[^\x20-\x7e]"
+		while RegExMatch(obj, needle, m)
+			obj := StrReplace(obj, m[0], Format("\u{:04X}", Ord(m[0])))
 	}
 	
 	return q . obj . q
