@@ -22,7 +22,7 @@ json_str =
 }
 )
 
-parsed := JSON.parse(json_str, true)
+parsed := JSON.Load(json_str, true)
 
 parsed_out := Format("
 (Join`r`n
@@ -39,8 +39,8 @@ object: {{}A:""{}"", H:""{}"", K:""{}""{}}
 , parsed.array[1], parsed.array[2], parsed.array[3]
 , parsed.object.A, parsed.object.H, parsed.object.K)
 
-stringified := JSON.stringify(parsed, 4)
-StringReplace stringified, stringified, `n, `r`n, All ; for display purposes only
+stringified := JSON.Dump(parsed, 4)
+stringified := StrReplace(stringified, "`n", "`r`n") ; for display purposes only
 
 ListVars
 WinWaitActive ahk_class AutoHotkey
