@@ -1,7 +1,7 @@
 /* Class: JSON
  *     JSON lib for AutoHotkey
  * Version:
- *     --
+ *     v1.2.00.00 [updated 03/28/2015 (MM/DD/YYYY)]
  * License:
  *     WTFPL [http://wtfpl.net/]
  * Requirements:
@@ -10,7 +10,7 @@
  *     Use #Include JSON.ahk or #Include <JSON>. Must be copied into a function
  *     library folder for the latter.
  * Others:
- *     Github:     - https://github.com/cocobelgica/AutoHotkey-JSON
+ *     GitHub:     - https://github.com/cocobelgica/AutoHotkey-JSON
  *     Forum Topic - http://goo.gl/r0zI8t
  *     Email:      - cocobelgica@gmail.com
  */
