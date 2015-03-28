@@ -16,20 +16,20 @@
  */
 class JSON
 {
-	/* Method: parse
+	/* Method: Load
 	 *     Deserialize a string containing a JSON document to an AHK object.
 	 * Syntax:
-	 *     json_obj := JSON.parse( ByRef src [ , jsonize := false ] )
+	 *     json_obj := JSON.Load( ByRef src [ , jsonize := false ] )
 	 * Parameter(s):
 	 *     src  [in, ByRef] - String containing a JSON document
 	 *     jsonize     [in] - If true, objects {} and arrays [] are wrapped as
-	 *                        JSON.object and JSON.array instances respectively.
+	 *                        JSON.Object and JSON.Array instances respectively.
 	 */
-	parse(ByRef src, jsonize:=false)
+	Load(ByRef src, jsonize:=false)
 	{
 		static q := Chr(34)
 
-		args := jsonize ? [ JSON.object, JSON.array ] : []
+		args := jsonize ? [ JSON.Object, JSON.Array ] : []
 		key := "", is_key := false
 		stack := [ tree := [] ]
 		is_arr := { (tree): 1 }
@@ -148,15 +148,15 @@ class JSON
 		
 		return tree[1]
 	}
-	/* Method: stringify
+	/* Method: Dump
 	 *     Serialize an object to a JSON formatted string.
 	 * Syntax:
-	 *     json_str := JSON.stringify( obj [ , indent := "" ] )
+	 *     json_str := JSON.Dump( obj [ , indent := "" ] )
 	 * Parameter(s):
 	 *     obj      [in] - The object to stringify.
 	 *     indent   [in] - Specify string(s) to use as indentation per level.
  	 */
-	stringify(obj:="", indent:="", lvl:=1)
+	Dump(obj:="", indent:="", lvl:=1)
 	{
 		static q := Chr(34)
 
@@ -191,9 +191,9 @@ class JSON
 					throw Exception("Invalid object key.", -1, k ? Format("<Object at 0x{:p}>", &obj) : "<blank>")
 				
 				if !is_array
-					out .= ( ObjGetCapacity([k], 1) ? JSON.stringify(k) : q . k . q ) ; key
+					out .= ( ObjGetCapacity([k], 1) ? JSON.Dump(k) : q . k . q ) ; key
 					    .  ( indent ? ": " : ":" ) ; token + padding
-				out .= JSON.stringify(v, indent, lvl) ; value
+				out .= JSON.Dump(v, indent, lvl) ; value
 				    .  ( indent ? ",`n" . indt : "," ) ; token + indent
 			}
 			
@@ -231,7 +231,7 @@ class JSON
 		return q . obj . q
 	}
 	
-	class object
+	class Object
 	{
 		
 		__New(args*)
@@ -264,14 +264,15 @@ class JSON
 			return ObjDelete(this, FirstKey, LastKey*)
 		}
 
-		stringify(indent:="")
+		Dump(indent:="")
 		{
-			return JSON.stringify(this, indent)
+			return JSON.Dump(this, indent)
 		}
+		static Stringify := JSON.Object.Dump
 
 		_NewEnum()
 		{
-			static enum := { "Next": JSON.object._EnumNext }
+			static enum := { "Next": JSON.Object._EnumNext }
 			return { base: enum, enum: ObjNewEnum(this._), obj: this }
 		}
 
@@ -285,7 +286,7 @@ class JSON
 		static InsertAt := "", RemoveAt := "", Push := "", Pop := ""
 	}
 		
-	class array
+	class Array
 	{
 			
 		__New(args*)
@@ -294,9 +295,13 @@ class JSON
 			return args
 		}
 
-		stringify(indent:="")
+		Dump(indent:="")
 		{
-			return JSON.stringify(this, indent)
+			return JSON.Dump(this, indent)
 		}
+		static Stringify := JSON.Array.Dump
 	}
+	; Deprecated but maintained for existing scripts using the lib
+	static Parse := JSON.Load ; cast to .Load
+	static Stringify := JSON.Dump ; cast to .Dump
 }
