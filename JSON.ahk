@@ -1,13 +1,18 @@
 /* Class: JSON
  *     JSON lib for AutoHotkey
+ * Version:
+ *     --
  * License:
  *     WTFPL [http://wtfpl.net/]
  * Requirements:
- *     AutoHotkey v1.1.17+
+ *     AutoHotkey v1.1.21.00+ OR v2.0-a+
+ * Installation:
+ *     Use #Include JSON.ahk or #Include <JSON>. Must be copied into a function
+ *     library folder for the latter.
  * Others:
- *     Github URL:  https://github.com/cocobelgica/AutoHotkey-JSON
- *     Email:       cocobelgica@gmail.com
- *     Last Update: 02/15/2015 (MM/DD/YYYY)
+ *     Github:     - https://github.com/cocobelgica/AutoHotkey-JSON
+ *     Forum Topic - http://goo.gl/r0zI8t
+ *     Email:      - cocobelgica@gmail.com
  */
 class JSON
 {
@@ -22,11 +27,13 @@ class JSON
 	 */
 	parse(ByRef src, jsonize:=false)
 	{
+		static q := Chr(34)
+
 		args := jsonize ? [ JSON.object, JSON.array ] : []
 		key := "", is_key := false
 		stack := [ tree := [] ]
 		is_arr := { (tree): 1 }
-		next := """{[01234567890-tfn"
+		next := q . "{[01234567890-tfn"
 		pos := 0
 		while ( (ch := SubStr(src, ++pos, 1)) != "" )
 		{
@@ -34,18 +41,18 @@ class JSON
 				continue
 			if !InStr(next, ch)
 			{
-				ln  := ObjMaxIndex(StrSplit(SubStr(src, 1, pos), "`n"))
+				ln  := ObjLength(StrSplit(SubStr(src, 1, pos), "`n"))
 				col := pos - InStr(src, "`n",, -(StrLen(src)-pos+1))
 
 				msg := Format("{}: line {} col {} (char {})"
-				,   (next == "")    ? ["Extra data", ch := SubStr(src, pos)][1]
-				  : (next == "'")   ? "Unterminated string starting at"
-				  : (next == "\")   ? "Invalid \escape"
-				  : (next == ":")   ? "Expecting ':' delimiter"
-				  : (next == """")  ? "Expecting object key enclosed in double quotes"
-				  : (next == """}") ? "Expecting object key enclosed in double quotes or object closing '}'"
-				  : (next == ",}")  ? "Expecting ',' delimiter or object closing '}'"
-				  : (next == ",]")  ? "Expecting ',' delimiter or array closing ']'"
+				,   (next == "")      ? ["Extra data", ch := SubStr(src, pos)][1]
+				  : (next == "'")     ? "Unterminated string starting at"
+				  : (next == "\")     ? "Invalid \escape"
+				  : (next == ":")     ? "Expecting ':' delimiter"
+				  : (next == q)       ? "Expecting object key enclosed in double quotes"
+				  : (next == q . "}") ? "Expecting object key enclosed in double quotes or object closing '}'"
+				  : (next == ",}")    ? "Expecting ',' delimiter or object closing '}'"
+				  : (next == ",]")    ? "Expecting ',' delimiter or array closing ']'"
 				  : [ "Expecting JSON value(string, number, [true, false, null], object or array)"
 				    , ch := SubStr(src, pos, (SubStr(src, pos)~="[\]\},\s]|$")-1) ][1]
 				, ln, col, pos)
@@ -58,49 +65,49 @@ class JSON
 			if i := InStr("{[", ch)
 			{
 				val := (proto := args[i]) ? new proto : {}
-				is_array? ObjInsert(obj, val) : obj[key] := val
-				ObjInsert(stack, 1, val)
+				is_array? ObjPush(obj, val) : obj[key] := val
+				ObjInsertAt(stack, 1, val)
 				
 				is_arr[val] := !(is_key := ch == "{")
-				next := is_key ? """}" : """{[]0123456789-tfn"
+				next := q . (is_key ? "}" : "{[]0123456789-tfn")
 			}
 
 			else if InStr("}]", ch)
 			{
-				ObjRemove(stack, 1)
+				ObjRemoveAt(stack, 1)
 				next := stack[1]==tree ? "" : is_arr[stack[1]] ? ",]" : ",}"
 			}
 
 			else if InStr(",:", ch)
 			{
 				is_key := (!is_array && ch == ",")
-				next := is_key ? """" : """{[0123456789-tfn"
+				next := is_key ? q : q . "{[0123456789-tfn"
 			}
 
 			else
 			{
-				if (ch == """")
+				if (ch == q)
 				{
 					i := pos
-					while (i := InStr(src, """",, i+1))
+					while i := InStr(src, q,, i+1)
 					{
-						val := SubStr(src, pos+1, i-pos-1)
-						StringReplace, val, val, \\, \u005C, A
-						if (SubStr(val, 0) != "\")
+						val := StrReplace(SubStr(src, pos+1, i-pos-1), "\\", "\u005C")
+						static end := A_AhkVersion<"2" ? 0 : -1
+						if (SubStr(val, end) != "\")
 							break
 					}
 					if !i ? (pos--, next := "'") : 0
 						continue
 					
-					pos := i
+					pos := i ; update pos
 
-					StringReplace, val, val, \/,  /, A
-					StringReplace, val, val, \",  ", A
-					StringReplace, val, val, \b, `b, A
-					StringReplace, val, val, \f, `f, A
-					StringReplace, val, val, \n, `n, A
-					StringReplace, val, val, \r, `r, A
-					StringReplace, val, val, \t, `t, A
+					  val := StrReplace(val,    "\/",  "/")
+					, val := StrReplace(val, "\" . q,    q)
+					, val := StrReplace(val,    "\b", "`b")
+					, val := StrReplace(val,    "\f", "`f")
+					, val := StrReplace(val,    "\n", "`n")
+					, val := StrReplace(val,    "\r", "`r")
+					, val := StrReplace(val,    "\t", "`t")
 
 					i := 0
 					while (i := InStr(val, "\",, i+1))
@@ -134,7 +141,7 @@ class JSON
 					val := val + 0, pos += i-1
 				}
 				
-				is_array? ObjInsert(obj, val) : obj[key] := val
+				is_array? ObjPush(obj, val) : obj[key] := val
 				next := obj==tree ? "" : is_array ? ",]" : ",}"
 			}
 		}
@@ -151,9 +158,12 @@ class JSON
  	 */
 	stringify(obj:="", indent:="", lvl:=1)
 	{
+		static q := Chr(34)
+
 		if IsObject(obj)
 		{
-			if (ObjGetCapacity(obj) == "") ; COM,Func,RegExMatch,File,Property object
+			static Type := Func("Type")
+			if Type ? (Type.Call(obj) != "Object") : (ObjGetCapacity(obj) == "") ; COM,Func,RegExMatch,File,Property object
 				throw Exception("Object type not supported.", -1, Format("<Object at 0x{:p}>", &obj))
 			
 			is_array := 0
@@ -161,7 +171,8 @@ class JSON
 				is_array := (k == A_Index)
 			until !is_array
 
-			if indent is integer
+			static integer := "integer"
+			if indent is %integer%
 			{
 				if (indent < 0)
 					throw Exception("Indent parameter must be a postive integer.", -1, indent)
@@ -180,7 +191,7 @@ class JSON
 					throw Exception("Invalid object key.", -1, k ? Format("<Object at 0x{:p}>", &obj) : "<blank>")
 				
 				if !is_array
-					out .= ( ObjGetCapacity([k], 1) ? JSON.stringify(k) : """" . k . """" ) ; key
+					out .= ( ObjGetCapacity([k], 1) ? JSON.stringify(k) : q . k . q ) ; key
 					    .  ( indent ? ": " : ":" ) ; token + padding
 				out .= JSON.stringify(v, indent, lvl) ; value
 				    .  ( indent ? ",`n" . indt : "," ) ; token + indent
@@ -190,7 +201,7 @@ class JSON
 			{
 				out := Trim(out, ",`n" indent)
 				if (indent != "")
-					out := Format("`n{}{}`n{}", indt, out, SubStr(indt, StrLen(indent)+1))
+					out := "`n" . indt . out . "`n" . SubStr(indt, StrLen(indent)+1)
 			}
 			
 			return is_array ? "[" . out . "]" : "{" . out . "}"
@@ -203,20 +214,21 @@ class JSON
 		; String (null -> not supported by AHK)
 		if (obj != "")
 		{
-			StringReplace, obj, obj,  \, \\, A
-			StringReplace, obj, obj,  /, \/, A
-			StringReplace, obj, obj,  ", \", A
-			StringReplace, obj, obj, `b, \b, A
-			StringReplace, obj, obj, `f, \f, A
-			StringReplace, obj, obj, `n, \n, A
-			StringReplace, obj, obj, `r, \r, A
-			StringReplace, obj, obj, `t, \t, A
+			  obj := StrReplace(obj,  "\",    "\\")
+			, obj := StrReplace(obj,  "/",    "\/")
+			, obj := StrReplace(obj,    q, "\" . q)
+			, obj := StrReplace(obj, "`b",    "\b")
+			, obj := StrReplace(obj, "`f",    "\f")
+			, obj := StrReplace(obj, "`n",    "\n")
+			, obj := StrReplace(obj, "`r",    "\r")
+			, obj := StrReplace(obj, "`t",    "\t")
 
-			while RegExMatch(obj, "[^\x20-\x7e]", m)
-				StringReplace, obj, obj, %m%, % Format("\u{:04X}", Asc(m)), A
+			static needle := (A_AhkVersion<"2" ? "O)" : "") . "[^\x20-\x7e]"
+			while RegExMatch(obj, needle, m)
+				obj := StrReplace(obj, m[0], Format("\u{:04X}", Ord(m[0])))
 		}
 		
-		return """" . obj . """"
+		return q . obj . q
 	}
 	
 	class object
@@ -224,36 +236,32 @@ class JSON
 		
 		__New(args*)
 		{
-			ObjInsert(this, "_", [])
-			if ((count := NumGet(&args+4*A_PtrSize)) & 1)
-				throw "Invalid number of parameters"
-			Loop % count//2
-				this[args[A_Index*2-1]] := args[A_Index*2]
+			if ((len := ObjLength(args)) & 1)
+				throw Exception("Too few parameters passed to function.", -1, len)
+
+			ObjRawSet(this, "_", []) ; bypass __Set
+			Loop % len//2
+				this[args[A_Index*2-1]] := args[A_Index*2] ; invoke __Set
 		}
 
-		__Set(key, val, args*)
+		__Set(key, args*)
 		{
-			ObjInsert(this._, key)
+			ObjPush(this._, key) ; add key to key list and allow __Set to continue normally
 		}
 
-		Insert(key, val)
+		Delete(FirstKey, LastKey*)
 		{
-			return this[key] := val
-		}
-		/* Buggy - remaining integer keys are not adjusted
-		Remove(args*) { 
-			ret := ObjRemove(this, args*), i := -1
-			for index, key in ObjClone(this._) {
-				if ObjHasKey(this, key)
-					continue
-				ObjRemove(this._, index-(i+=1))
-			}
-			return ret
-		}
-		*/
-		Count()
-		{
-			return NumGet(&(this._) + 4*A_PtrSize) ; Round(this._.MaxIndex())
+			IsRange := ObjLength(LastKey)
+			i := 0
+			for index, key in ObjClone(this._)
+				if IsRange ? (key >= FirstKey && key <= LastKey[1]) : (key = FirstKey)
+				{
+					ObjRemoveAt(this._, index - (i++))
+					if !IsRange ; single key only
+						break
+				}
+			
+			return ObjDelete(this, FirstKey, LastKey*)
 		}
 
 		stringify(indent:="")
@@ -263,16 +271,18 @@ class JSON
 
 		_NewEnum()
 		{
-			static proto := { "Next": JSON.object.Next }
-			return { base: proto, enum: this._._NewEnum(), obj: this }
+			static enum := { "Next": JSON.object._EnumNext }
+			return { base: enum, enum: ObjNewEnum(this._), obj: this }
 		}
 
-		Next(ByRef key, ByRef val:="")
+		_EnumNext(ByRef key, ByRef val:="")
 		{
-			if (ret := this.enum.Next(i, key))
+			if r := this.enum.Next(, key)
 				val := this.obj[key]
-			return ret
+			return r
 		}
+		; Do not implement array methods??
+		static InsertAt := "", RemoveAt := "", Push := "", Pop := ""
 	}
 		
 	class array
