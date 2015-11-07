@@ -22,7 +22,7 @@ json_str =
 }
 )
 
-parsed := JSON.Load(json_str, true)
+parsed := JSON.Load(json_str)
 
 parsed_out := Format("
 (Join`r`n
@@ -39,7 +39,7 @@ object: {{}A:""{}"", H:""{}"", K:""{}""{}}
 , parsed.array[1], parsed.array[2], parsed.array[3]
 , parsed.object.A, parsed.object.H, parsed.object.K)
 
-stringified := JSON.Dump(parsed, 4)
+stringified := JSON.Dump(parsed,, 4)
 stringified := StrReplace(stringified, "`n", "`r`n") ; for display purposes only
 
 ListVars
