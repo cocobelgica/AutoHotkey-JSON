@@ -137,10 +137,10 @@ class JSON
 						} else {
 							value := SubStr(text, pos, i := RegExMatch(text, "[\]\},\s]|$",, pos)-pos)
 
-							static number := "number", null := ""
+							static number := "number", _null := ""
 							if value is %number%
 								value += 0
-							else if (value == "true" || value == "false" || value == "null")
+							else if (value == "true" || value == "false" || value == "_null")
 								value := %value% + 0
 							else
 							; we can do more here to pinpoint the actual culprit
