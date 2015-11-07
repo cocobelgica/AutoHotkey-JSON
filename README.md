@@ -2,9 +2,9 @@
 
 #### [JSON](http://json.org/) lib for [AutoHotkey](http://ahkscript.org/)
 
-Requirements: AutoHotkey _v1.1.21.00+_ or _v2.0-a_
+Requirements: Latest version of AutoHotkey _(v1.1+ or v2.0-a+)_
 
-Version: v1.2.00.00 _(updated 03/28/2015)_
+Version: v2.0.00.00 _(updated 11/07/2015)_
 
 License: [WTFPL](http://wtfpl.net/)
 
@@ -15,44 +15,42 @@ License: [WTFPL](http://wtfpl.net/)
 Works on both AutoHotkey _v1.1_ and _v2.0a_
 
 ### Installation
-Use `#Include JSON.ahk` or `#Include <JSON>`. Must be copied into a [function library folder](http://ahkscript.org/docs/Functions.htm#lib) for the latter.
+Use `#Include JSON.ahk` or copy into a [function library folder](http://ahkscript.org/docs/Functions.htm#lib) and use `#Include <JSON>`.
 
 - - -
 
-#### .Load() _(previously `.parse()`)_
-Deserialize _src_ (a JSON formatted string) to an AutoHotkey object
+#### .Load()
+Parses a JSON string into an AHK value
 
 #### Syntax:
 
-    obj := JSON.Load( ByRef src [, jsonize := false ] )
+    value := JSON.Load( text [, reviver ] )
 
 
 #### Return Value:
-An AutoHotkey object
+An AutoHotkey value _(object, string, number)_
 
 #### Parameter(s):
- * **src** [in, ByRef] - JSON formatted string
- * **jsonize** [in, opt] - if _true_, **_objects_( ``{}`` )** and **_arrays_( ``[]`` )** are wrapped as **JSON.Object** and **JSON.Array** instances respectively. This is to compensate for AutoHotkey's non-distinction between these types and other AHK object type quirks. _e.g.: In AutoHotkey, object keys are enumerated in alphabetical order not in the sequence in which they are created_
+ * **text** [in] - JSON formatted string
+ * **reviver** [in, opt] - function object, prescribes how the value originally produced by parsing is transformed, before being returned. Similar to JavaScript's `JSON.parse()` _reviver_ parameter.
 
 - - -
 
-#### .Dump() _(previously `.stringify()`)_
-Serialize _obj_ to a JSON formatted string
+#### .Dump()
+Converts an AHK value into a JSON string
 
 #### Syntax:
 
-    str := JSON.Dump( obj, [, indent := "" ] )
+    str := JSON.Dump( value, [, replacer, space ] )
 
 
 #### Return Value:
 A JSON formatted string
 
 #### Parameter(s):
- * **obj** [in] - AutoHotkey object. Non-standard AHK objects like _COM_, _Func_, _FileObject_, _RegExMatchObject_ are not supported.
- * **indent** [in, opt] -if indent is a non-negative integer or string, then JSON array elements and object members will be pretty-printed with that indent level. Blank( ``""`` ) (the default) or ``0`` selects the most compact representation. Using a positive integer indent indents that many spaces per level. If indent is a string (such as ``"`t"``), that string is used to indent each level. _(I'm lazy, wording taken from Python docs)_
-
-### Remarks:
-For compatibilty with existing scripts using this lib. Calls to `.parse()` and `.stringify()` are cast to `.Load()` and `.Dump()` respectively.
+ * **value** [in] - AutoHotkey value _(object, string, number)_
+ * **replacer** [in, opt] - function object, alters the behavior of the stringification process. Similar to JavaScript's `JSON.stringify()` _replacer_ parameter.
+ * **space** [in, opt] -if _space_ is a non-negative integer or string, then JSON array elements and object members will be pretty-printed with that indent level. Blank( ``""`` ) _(the default)_ or ``0`` selects the most compact representation. Using a positive integer _space_ indents that many spaces per level, this number is capped at 10 if it's larger than that. If _space_ is a string (such as ``"`t"``), the string _(or the first 10 characters of the string, if it's longer than that)_ is used to indent each level.
 
 - - -
  
