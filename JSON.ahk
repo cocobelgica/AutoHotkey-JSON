@@ -2,7 +2,7 @@
  * Lib: JSON.ahk
  *     JSON lib for AutoHotkey.
  * Version:
- *     v2.0.00.00 [updated 11/07/2015 (MM/DD/YYYY)]
+ *     v2.1.0 [updated 01/28/2016 (MM/DD/YYYY)]
  * License:
  *     WTFPL [http://wtfpl.net/]
  * Requirements:
@@ -137,11 +137,13 @@ class JSON
 						} else {
 							value := SubStr(text, pos, i := RegExMatch(text, "[\]\},\s]|$",, pos)-pos)
 
-							static number := "number", null := ""
+							static number := "number"
 							if value is %number%
 								value += 0
-							else if (value == "true" || value == "false" || value == "null")
+							else if (value == "true" || value == "false")
 								value := %value% + 0
+							else if (value == "null")
+								value := ""
 							else
 							; we can do more here to pinpoint the actual culprit
 							; but that's just too much extra work.
@@ -240,51 +242,61 @@ class JSON
 				value := this.rep.Call(holder, key, value)
 
 			if IsObject(value) {
-				if (this.gap) {
-					stepback := this.indent
-					this.indent .= this.gap
-				}
+			; Check object type, skip serialization for other object types such as
+			; ComObject, Func, BoundFunc, FileObject, RegExMatchObject, Property, etc.
+				static type := A_AhkVersion<"2" ? "" : Func("Type")
+				if (type ? type.Call(value) == "Object" : ObjGetCapacity(value) != "") {
+					if (this.gap) {
+						stepback := this.indent
+						this.indent .= this.gap
+					}
 
-				is_array := value.IsArray
+					is_array := value.IsArray
 				; Array() is not overridden, rollback to old method of
-				; identifying array-like objects
-				if (!is_array) {
-					for i in value
-						is_array := i == A_Index
-					until !is_array
-				}
-
-				str := ""
-				if (is_array) {
-					Loop, % value.Length() {
-						if (this.gap)
-							str .= this.indent
-						
-						str .= value.HasKey(A_Index) ? this.Str(value, A_Index) . "," : "null,"
+				; identifying array-like objects. Due to the use of a for-loop
+				; sparse arrays such as '[1,,3]' are detected as objects({}). 
+					if (!is_array) {
+						for i in value
+							is_array := i == A_Index
+						until !is_array
 					}
-				} else {
-					colon := this.gap ? ": " : ":"
-					for k in value {
-						if (this.gap)
-							str .= this.indent
 
-						str .= this.Quote(k) . colon . this.Str(value, k) . ","
+					str := ""
+					if (is_array) {
+						Loop, % value.Length() {
+							if (this.gap)
+								str .= this.indent
+							
+							v := this.Str(value, A_Index)
+							str .= (v != "") && value.HasKey(A_Index) ? v . "," : "null,"
+						}
+					} else {
+						colon := this.gap ? ": " : ":"
+						for k in value {
+							v := this.Str(value, k)
+							if (v != "") {
+								if (this.gap)
+									str .= this.indent
+
+								str .= this.Quote(k) . colon . v . ","
+							}
+						}
 					}
-				}
 
-				if (str != "") {
-					str := RTrim(str, ",")
+					if (str != "") {
+						str := RTrim(str, ",")
+						if (this.gap)
+							str .= stepback
+					}
+
 					if (this.gap)
-						str .= stepback
+						this.indent := stepback
+
+					return is_array ? "[" . str . "]" : "{" . str . "}"
 				}
-
-				if (this.gap)
-					this.indent := stepback
-
-				return is_array ? "[" . str . "]" : "{" . str . "}"
-			}
-			; is_number ? value : "value"
-			return ObjGetCapacity([value], 1)=="" ? value : this.Quote(value)
+			
+			} else ; is_number ? value : "value"
+				return ObjGetCapacity([value], 1)=="" ? value : this.Quote(value)
 		}
 
 		Quote(string)
@@ -307,6 +319,29 @@ class JSON
 			}
 
 			return q . string . q
+		}
+	}
+
+	/**
+	 * Property: Undefined
+	 *     Proxy for 'undefined' type
+	 * Syntax:
+	 *     undefined := JSON.Undefined
+	 * Remarks:
+	 *     For use with reviver and replacer functions since AutoHotkey does not
+	 *     have an 'undefined' type. Returning blank("") or 0 won't work since these
+	 *     can't be distnguished from actual JSON values. This leaves us with objects.
+	 *     The caller may return a non-serializable AHK objects such as ComObject,
+	 *     Func, BoundFunc, FileObject, RegExMatchObject, and Property to mimic the
+	 *     behavior of returning 'undefined' in JavaScript but for the sake of code
+	 *     readability and convenience, it's better to do 'return JSON.Undefined'.
+	 *     Internally, the property returns a ComObject with the variant type of VT_EMPTY.
+	 */
+	Undefined[]
+	{
+		get {
+			static empty := {}, vt_empty := ComObject(0, &empty, 1)
+			return vt_empty
 		}
 	}
 
