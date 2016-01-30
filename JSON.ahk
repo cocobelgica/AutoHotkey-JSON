@@ -2,7 +2,7 @@
  * Lib: JSON.ahk
  *     JSON lib for AutoHotkey.
  * Version:
- *     v2.1.0 [updated 01/28/2016 (MM/DD/YYYY)]
+ *     v2.1.1 [updated 01/30/2016 (MM/DD/YYYY)]
  * License:
  *     WTFPL [http://wtfpl.net/]
  * Requirements:
@@ -44,6 +44,9 @@ class JSON
 		Call(self, text, reviver:="")
 		{
 			this.rev := IsObject(reviver) ? reviver : false
+		; Object keys(and array indices) are temporarily stored in arrays so that
+		; we can enumerate them in the order they appear in the document/text instead
+		; of alphabetically. Skip if no reviver function is specified.
 			this.keys := this.rev ? {} : false
 
 			static q := Chr(34)
@@ -192,9 +195,16 @@ class JSON
 		Walk(holder, key)
 		{
 			value := holder[key]
-			if IsObject(value)
-				for i, k in this.keys[value]
-					value[k] := this.Walk.Call(this, value, k) ; bypass __Call
+			if IsObject(value) {
+				for i, k in this.keys[value] {
+					; check if ObjHasKey(value, k) ??
+					v := this.Walk.Call(this, value, k) ; bypass __Call
+					if (v != JSON.Undefined)
+						value[k] := v
+					else
+						ObjDelete(value, k)
+				}
+			}
 			
 			return this.rev.Call(holder, key, value)
 		}
@@ -239,7 +249,7 @@ class JSON
 			value := holder[key]
 
 			if (this.rep)
-				value := this.rep.Call(holder, key, value)
+				value := this.rep.Call(holder, key, ObjHasKey(holder, key) ? value : JSON.Undefined)
 
 			if IsObject(value) {
 			; Check object type, skip serialization for other object types such as
@@ -268,7 +278,7 @@ class JSON
 								str .= this.indent
 							
 							v := this.Str(value, A_Index)
-							str .= (v != "") && value.HasKey(A_Index) ? v . "," : "null,"
+							str .= (v != "") ? v . "," : "null,"
 						}
 					} else {
 						colon := this.gap ? ": " : ":"
@@ -331,10 +341,10 @@ class JSON
 	 *     For use with reviver and replacer functions since AutoHotkey does not
 	 *     have an 'undefined' type. Returning blank("") or 0 won't work since these
 	 *     can't be distnguished from actual JSON values. This leaves us with objects.
-	 *     The caller may return a non-serializable AHK objects such as ComObject,
-	 *     Func, BoundFunc, FileObject, RegExMatchObject, and Property to mimic the
-	 *     behavior of returning 'undefined' in JavaScript but for the sake of code
-	 *     readability and convenience, it's better to do 'return JSON.Undefined'.
+	 *     Replacer() - the caller may return a non-serializable AHK objects such as
+	 *     ComObject, Func, BoundFunc, FileObject, RegExMatchObject, and Property to
+	 *     mimic the behavior of returning 'undefined' in JavaScript but for the sake
+	 *     of code readability and convenience, it's better to do 'return JSON.Undefined'.
 	 *     Internally, the property returns a ComObject with the variant type of VT_EMPTY.
 	 */
 	Undefined[]
