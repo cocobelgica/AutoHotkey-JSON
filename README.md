@@ -4,7 +4,7 @@
 
 Requirements: Latest version of AutoHotkey _(v1.1+ or v2.0-a+)_
 
-Version: v2.0.00.00 _(updated 11/07/2015)_
+Version: v2.1.1 _(updated 01/30/2016)_
 
 License: [WTFPL](http://wtfpl.net/)
 
