@@ -103,14 +103,29 @@ Jxon_Load(ByRef src, args*)
 			else ; number | true | false | null
 			{
 				val := SubStr(src, pos, i := RegExMatch(src, "[\]\},\s]|$",, pos)-pos)
-				
-				static null := "" ; for #Warn
-				if InStr(",true,false,null,", "," . val . ",", true) ; if var in
-					val := %val%
-				else if (Abs(val) == "") ? (pos--, next := "#") : 0
+			
+			; For numerical values, numerify integers and keep floats as is.
+			; I'm not yet sure if I should numerify floats in v2.0-a ...
+				static number := "number", integer := "integer"
+				if val is %number%
+				{
+					if val is %integer%
+						val += 0
+				}
+			; in v1.1, true,false,A_PtrSize,A_IsUnicode,A_Index,A_EventInfo,
+			; SOMETIMES return strings due to certain optimizations. Since it
+			; is just 'SOMETIMES', numerify to be consistent w/ v2.0-a
+				else if (val == "true" || val == "false")
+					val := %value% + 0
+			; AHK_H has built-in null, can't do 'val := %value%' where value == "null"
+			; as it would raise an exception in AHK_H(overriding built-in var)
+				else if (val == "null")
+					val := ""
+			; any other values are invalid, continue to trigger error
+				else if (pos--, next := "#")
 					continue
 				
-				val := val + 0, pos += i-1
+				pos += i-1
 			}
 			
 			is_array? ObjPush(obj, val) : obj[key] := val

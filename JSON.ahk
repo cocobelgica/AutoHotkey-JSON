@@ -2,7 +2,7 @@
  * Lib: JSON.ahk
  *     JSON lib for AutoHotkey.
  * Version:
- *     v2.1.1 [updated 01/30/2016 (MM/DD/YYYY)]
+ *     v2.1.2 [updated 04/07/2016 (MM/DD/YYYY)]
  * License:
  *     WTFPL [http://wtfpl.net/]
  * Requirements:
@@ -140,9 +140,12 @@ class JSON
 						} else {
 							value := SubStr(text, pos, i := RegExMatch(text, "[\]\},\s]|$",, pos)-pos)
 
-							static number := "number"
+							static number := "number", integer :="integer"
 							if value is %number%
-								value += 0
+							{
+								if value is %integer%
+									value += 0
+							}
 							else if (value == "true" || value == "false")
 								value := %value% + 0
 							else if (value == "null")
