@@ -49,10 +49,10 @@ class JSON
 		; of alphabetically. Skip if no reviver function is specified.
 			this.keys := this.rev ? {} : false
 
-			static q := Chr(34)
-			     , json_value := q . "{[01234567890-tfn"
-			     , json_value_or_array_closing := q . "{[]01234567890-tfn"
-			     , object_key_or_object_closing := q . "}"
+			static quot := Chr(34), bashq := "\" . quot
+			     , json_value := quot . "{[01234567890-tfn"
+			     , json_value_or_array_closing := quot . "{[]01234567890-tfn"
+			     , object_key_or_object_closing := quot . "}"
 
 			key := ""
 			is_key := false
@@ -71,7 +71,7 @@ class JSON
 				is_array := holder.IsArray
 
 				if InStr(",:", ch) {
-					next := (is_key := !is_array && ch == ",") ? q : json_value
+					next := (is_key := !is_array && ch == ",") ? quot : json_value
 
 				} else if InStr("}]", ch) {
 					ObjRemoveAt(stack, 1)
@@ -99,26 +99,26 @@ class JSON
 							this.keys[value] := []
 					
 					} else {
-						if (ch == q) {
+						if (ch == quot) {
 							i := pos
-							while (i := InStr(text, q,, i+1)) {
+							while (i := InStr(text, quot,, i+1)) {
 								value := StrReplace(SubStr(text, pos+1, i-pos-1), "\\", "\u005c")
 
-								static ss_end := A_AhkVersion<"2" ? 0 : -1
-								if (SubStr(value, ss_end) != "\")
+								static tail := A_AhkVersion<"2" ? 0 : -1
+								if (SubStr(value, tail) != "\")
 									break
 							}
 
 							if (!i)
 								this.ParseError("'", text, pos)
 
-							  value := StrReplace(value,    "\/",  "/")
-							, value := StrReplace(value, "\" . q,    q)
-							, value := StrReplace(value,    "\b", "`b")
-							, value := StrReplace(value,    "\f", "`f")
-							, value := StrReplace(value,    "\n", "`n")
-							, value := StrReplace(value,    "\r", "`r")
-							, value := StrReplace(value,    "\t", "`t")
+							  value := StrReplace(value,  "\/",  "/")
+							, value := StrReplace(value, bashq, quot)
+							, value := StrReplace(value,  "\b", "`b")
+							, value := StrReplace(value,  "\f", "`f")
+							, value := StrReplace(value,  "\n", "`n")
+							, value := StrReplace(value,  "\r", "`r")
+							, value := StrReplace(value,  "\t", "`t")
 
 							pos := i ; update pos
 							
@@ -174,21 +174,21 @@ class JSON
 
 		ParseError(expect, ByRef text, pos, len:=1)
 		{
-			static q := Chr(34)
+			static quot := Chr(34), qurly := quot . "}"
 			
 			line := StrSplit(SubStr(text, 1, pos), "`n", "`r").Length()
 			col := pos - InStr(text, "`n",, -(StrLen(text)-pos+1))
 			msg := Format("{1}`n`nLine:`t{2}`nCol:`t{3}`nChar:`t{4}"
-			,     (expect == "")      ? "Extra data"
-			    : (expect == "'")     ? "Unterminated string starting at"
-			    : (expect == "\")     ? "Invalid \escape"
-			    : (expect == ":")     ? "Expecting ':' delimiter"
-			    : (expect == q)       ? "Expecting object key enclosed in double quotes"
-			    : (expect == q . "}") ? "Expecting object key enclosed in double quotes or object closing '}'"
-			    : (expect == ",}")    ? "Expecting ',' delimiter or object closing '}'"
-			    : (expect == ",]")    ? "Expecting ',' delimiter or array closing ']'"
-			    : InStr(expect, "]")  ? "Expecting JSON value or array closing ']'"
-			    :                       "Expecting JSON value(string, number, true, false, null, object or array)"
+			,     (expect == "")     ? "Extra data"
+			    : (expect == "'")    ? "Unterminated string starting at"
+			    : (expect == "\")    ? "Invalid \escape"
+			    : (expect == ":")    ? "Expecting ':' delimiter"
+			    : (expect == quot)   ? "Expecting object key enclosed in double quotes"
+			    : (expect == qurly)  ? "Expecting object key enclosed in double quotes or object closing '}'"
+			    : (expect == ",}")   ? "Expecting ',' delimiter or object closing '}'"
+			    : (expect == ",]")   ? "Expecting ',' delimiter or array closing ']'"
+			    : InStr(expect, "]") ? "Expecting JSON value or array closing ']'"
+			    :                      "Expecting JSON value(string, number, true, false, null, object or array)"
 			, line, col, pos)
 
 			static offset := A_AhkVersion<"2" ? -3 : -4
@@ -201,7 +201,7 @@ class JSON
 			if IsObject(value) {
 				for i, k in this.keys[value] {
 					; check if ObjHasKey(value, k) ??
-					v := this.Walk.Call(this, value, k) ; bypass __Call
+					v := this.Walk(value, k)
 					if (v != JSON.Undefined)
 						value[k] := v
 					else
@@ -314,24 +314,24 @@ class JSON
 
 		Quote(string)
 		{
-			static q := Chr(34)
+			static quot := Chr(34), bashq := "\" . quot
 
 			if (string != "") {
-				  string := StrReplace(string,  "\",    "\\")
-				; , string := StrReplace(string,  "/",    "\/") ; optional in ECMAScript
-				, string := StrReplace(string,    q, "\" . q)
-				, string := StrReplace(string, "`b",    "\b")
-				, string := StrReplace(string, "`f",    "\f")
-				, string := StrReplace(string, "`n",    "\n")
-				, string := StrReplace(string, "`r",    "\r")
-				, string := StrReplace(string, "`t",    "\t")
+				  string := StrReplace(string,  "\",  "\\")
+				; , string := StrReplace(string,  "/",  "\/") ; optional in ECMAScript
+				, string := StrReplace(string, quot, bashq)
+				, string := StrReplace(string, "`b",  "\b")
+				, string := StrReplace(string, "`f",  "\f")
+				, string := StrReplace(string, "`n",  "\n")
+				, string := StrReplace(string, "`r",  "\r")
+				, string := StrReplace(string, "`t",  "\t")
 
 				static rx_escapable := A_AhkVersion<"2" ? "O)[^\x20-\x7e]" : "[^\x20-\x7e]"
 				while RegExMatch(string, rx_escapable, m)
 					string := StrReplace(string, m.Value, Format("\u{1:04x}", Ord(m.Value)))
 			}
 
-			return q . string . q
+			return quot . string . quot
 		}
 	}
 
