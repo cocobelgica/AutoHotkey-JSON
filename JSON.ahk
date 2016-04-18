@@ -2,7 +2,7 @@
  * Lib: JSON.ahk
  *     JSON lib for AutoHotkey.
  * Version:
- *     v2.1.2 [updated 04/07/2016 (MM/DD/YYYY)]
+ *     v2.1.3 [updated 04/18/2016 (MM/DD/YYYY)]
  * License:
  *     WTFPL [http://wtfpl.net/]
  * Requirements:
@@ -35,13 +35,13 @@ class JSON
 	 *     value := JSON.Load( text [, reviver ] )
 	 * Parameter(s):
 	 *     value      [retval] - parsed value
-	 *     text      [in, opt] - JSON formatted string
+	 *     text    [in, ByRef] - JSON formatted string
 	 *     reviver   [in, opt] - function object, similar to JavaScript's
 	 *                           JSON.parse() 'reviver' parameter
 	 */
 	class Load extends JSON.Functor
 	{
-		Call(self, text, reviver:="")
+		Call(self, ByRef text, reviver:="")
 		{
 			this.rev := IsObject(reviver) ? reviver : false
 		; Object keys(and array indices) are temporarily stored in arrays so that
@@ -172,7 +172,7 @@ class JSON
 			return this.rev ? this.Walk(root, "") : root[""]
 		}
 
-		ParseError(expect, text, pos, len:=1)
+		ParseError(expect, ByRef text, pos, len:=1)
 		{
 			static q := Chr(34)
 			
@@ -360,15 +360,15 @@ class JSON
 
 	class Functor
 	{
-		__Call(method, args*)
+		__Call(method, ByRef arg, args*)
 		{
 		; When casting to Call(), use a new instance of the "function object"
 		; so as to avoid directly storing the properties(used across sub-methods)
 		; into the "function object" itself.
 			if IsObject(method)
-				return (new this).Call(method, args*)
+				return (new this).Call(method, arg, args*)
 			else if (method == "")
-				return (new this).Call(args*)
+				return (new this).Call(arg, args*)
 		}
 	}
 }
