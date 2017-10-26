@@ -5,9 +5,10 @@
 Requirements: Latest version of AutoHotkey _(v1.1+ or v2.0-a+)_
 
 Version: v2.1.1 _(updated 01/30/2016)_
-
+Example: Updated 2017-10-26
 License: [WTFPL](http://wtfpl.net/)
 
+The example gui, `Example_JSON_Gui.ahk`, has a **Parsed** and a **Stringified** button. Parsed is custom code uses the input string given as an example. Stringified, however, will take any JSON pasted into the **Input** box and stringify (prettify) it.
 
 - - -
 
