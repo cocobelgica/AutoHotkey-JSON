@@ -39,14 +39,15 @@ class JSON
 					break
 			}
 			
-			if !j, throw Exception("Missing close quote(s)")
+			if !j 
+				throw Exception("Missing close quote(s)")
 			src := SubStr(src, 1, i) . SubStr(src, j+1)
 			
 			k := 0
 			while (k := InStr(str, "\",, k+1))
 			{
 				ch := SubStr(str, k+1, 1)
-				if InStr('"btnfr/', ch)
+				if InStr('"btnfr/', ch) ;"
 					str := SubStr(str, 1, k-1) . esc_seq[ch] . SubStr(str, k+2)
 				
 				else if (ch = "u")
@@ -58,7 +59,7 @@ class JSON
 				
 				}
 				else
-					throw Exception("Invalid escape sequence: '\%ch%'")
+					throw Exception("Invalid escape sequence: '\" ch "'")
 			}
 			ObjPush(strings, str)
 		}
@@ -68,14 +69,14 @@ class JSON
 		{
 			StrReplace(src, '{', '{', c1), StrReplace(src, '}', '}', c2)
 			if (c1 != c2)
-				throw Exception("Missing %Abs(c1-c2)% %(c1 > c2 ? 'clos' : 'open')%ing brace(s)")
+				throw Exception("Missing " Abs(c1-c2) (c1 > c2 ? 'clos' : 'open') "ing brace(s)")
 		}
 		;// Check for missing opening/closing bracket(s)
 		if InStr(src, '[') || InStr(src, ']')
 		{
 			StrReplace(src, '[', '[', c1), StrReplace(src, ']', ']', c2)
 			if (c1 != c2)
-				throw Exception("Missing %Abs(c1-c2)% %(c1 > c2 ? 'clos' : 'open')%ing bracket(s)")
+				throw Exception("Missing " Abs(c1-c2) (c1 > c2 ? 'clos' : 'open') "ing bracket(s)")
 		}
 		
 		static t := "true", f := "false", n := "null", null := ""
@@ -90,7 +91,7 @@ class JSON
 			if InStr(" `t`n`r", ch)
 				continue
 			if !InStr(next, ch)
-				throw Exception("Unexpected char: '%ch%'")
+				throw Exception("Unexpected char: '" ch "'")
 			
 			is_array := is_arr[obj := stack[1]]
 			
@@ -112,7 +113,7 @@ class JSON
 			else if InStr(",:", ch)
 			{
 				if (obj == tree)
-					throw Exception("Unexpected char: '%ch%' -> there is no container object.")
+					throw Exception("Unexpected char: '" ch "' -> there is no container object.")
 				next := '"{[0123456789-tfn', is_key := (!is_array && ch == ",")
 			}
 
@@ -131,15 +132,24 @@ class JSON
 				{
 					val := SubStr(src, pos, (SubStr(src, pos) ~= "[\]\},\s]|$")-1)
 					, pos += StrLen(val)-1
+					
 					if InStr("tfn", ch, 1)
-					{
-						if !(val == %ch%)
-							throw Exception("Expected '%(%ch%)%' instead of '%val%'")
-						val := %val%
+					{	
+						if !(Substr(val,1,1) == ch) {
+							 throw Exception("Expected '%(" ch ")%' instead of '" val "'")
+						}
 					}
-					else if (Abs(val) == "")
-						throw Exception("Invalid number: %val%")
-					val += 0
+					else if (Abs(val) == "") {
+						throw Exception("Invalid number: " val)
+					}
+					if (Substr(val,1,1) == "t")
+						val := true
+					else if (Substr(val,1,1) == "f")
+						val := false
+					else if (Substr(val,1,1) == "n")
+						val := null
+					else
+						val += 0
 				}
 				obj[is_array? ObjLength(obj)+1 : key] := val
 				, next := is_array ? "]," : "},"
@@ -155,40 +165,42 @@ class JSON
 		{
 			is_array := 0
 			for k in obj
-				if !(is_array := (k == A_Index)), break
+				if !(is_array := (k == A_Index))
+					break
 
 			if (Abs(indent) != "")
 			{
 				if (indent < 0)
 					throw "Indent parameter must be a postive integer"
 				spaces := indent, indent := ""
-				Loop % spaces
+				Loop spaces
 					indent .= " "
 			}
 			indt := ""
-			Loop, % indent ? lvl : 0
+			Loop (indent ? lvl : 0)
 				indt .= indent
 			
 			lvl += 1, out := "" ;// make #Warn happy
 			for k, v in obj
 			{
-				if IsObject(k) || (k == ""), throw Exception("Invalid JSON key")
+				if (IsObject(k) || (k == ""))
+					throw Exception("Invalid JSON key")
 				
 				if !is_array
-					out .= ( Type(k) == "String" ? JSON.stringify(k) : '"%k%"' ) ;// key
+					out .= ( Type(k) == "String" ? JSON.stringify(k) : '"" k ""' ) ;// key
 					    .  ( indent ? ": " : ":" ) ;// token
 				out .= JSON.stringify(v, indent, lvl) ;// value
-				    .  ( indent ? ",`n%indt%" : "," ) ;// token + indent
+				    .  ( indent ? ",`n" indt : "," ) ;// token + indent
 			}
 
 			if (out != "")
 			{
-				out := Trim(out, ",`n%indent%")
+				out := Trim(out, ",`n" indent)
 				if (indent != "")
-					out := "`n%indt%%out%`n" . SubStr(indt, StrLen(indent)+1)
+					out := "`n " indt out "`n" SubStr(indt, StrLen(indent)+1)
 			}
 			
-			return is_array ? "[%out%]" : "{%out%}"
+			return is_array ? "[" out "]" : "{" out "}"
 		}
 
 		else if (type == "Integer" || type == "Float")
@@ -219,9 +231,9 @@ class JSON
 					obj := StrReplace(obj, wstr.Value, hex)
 				}
 			}
-			return '"%obj%"'
+			return "`"" obj "`""
 		}
-		throw Exception("Unsupported type: '%type%'")
+		throw Exception("Unsupported type: '" type "'")
 	}
 
 	class object
@@ -249,7 +261,8 @@ class JSON
 				if is_range? (key >= args[1] && key <= args[2]) : (key = args[1])
 				{
 					ObjRemoveAt(this._, index-(i+=1))
-					if !is_range, break ;// single key only
+					if !is_range
+						break ;// single key only
 				}
 			}
 			/* Alternative way
@@ -262,7 +275,7 @@ class JSON
 			ObjRawSet(this, "_", keys)
 			*/
 			A_StringCaseSense := scs
-			return ObjRemove(this, args*)
+			return ObjDelete(this, args*)
 		}
 
 		Count()
