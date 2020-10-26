@@ -188,7 +188,8 @@ Jxon_Dump(obj, indent:="", lvl:=1)
 	}
 
 	; Number
-	else if (ObjGetCapacity([obj], 1) == "")
+	else if obj is number
+	; else if (ObjGetCapacity([obj], 1) == "")
 		return obj
 
 	; String (null -> not supported by AHK)
